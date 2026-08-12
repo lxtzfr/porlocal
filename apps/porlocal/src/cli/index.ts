@@ -8,6 +8,7 @@ import { detectSuggestions } from "../core/command-detector.js";
 import { generateId } from "../core/ids.js";
 import { occupantOf, isPortFree } from "../core/ports.js";
 import { daemonRequest, peekDaemon } from "./daemon-client.js";
+import { ensureDashboard, openBrowser } from "./dashboard-client.js";
 
 const program = new Command();
 
@@ -280,6 +281,18 @@ program
 
     const state = await daemonRequest<ServerState>("POST", "/take-over", { server: ref });
     console.log(`${ref}: ${state.status} (pid ${state.pid ?? "n/a"})`);
+  });
+
+program
+  .command("dashboard")
+  .description("Build (first run only) and open the web dashboard")
+  .option("--port <port>", "port to serve the dashboard on", "3000")
+  .option("--no-open", "do not open a browser automatically")
+  .action(async (options: { port: string; open: boolean }) => {
+    const port = Number(options.port);
+    const { url, alreadyRunning } = await ensureDashboard(port);
+    console.log(alreadyRunning ? `Dashboard already running at ${url}` : `Dashboard running at ${url}`);
+    if (options.open) openBrowser(url);
   });
 
 program.parseAsync(process.argv);

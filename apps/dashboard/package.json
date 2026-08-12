@@ -9,14 +9,16 @@
     "dev": "vite dev --port 3000",
     "generate-routes": "tsr generate",
     "build": "vite build",
+    "start": "node .output/server/index.mjs",
     "preview": "vite preview"
   },
   "dependencies": {
     "@mantine/core": "^9.5.1",
-    "@porlocal/core": "^0.1.0",
     "@mantine/hooks": "^9.5.1",
+    "@porlocal/core": "^0.1.0",
     "@tanstack/react-router": "latest",
     "@tanstack/react-start": "latest",
+    "nitro": "3.0.260610-beta",
     "react": "^19.2.0",
     "react-dom": "^19.2.0"
   },
