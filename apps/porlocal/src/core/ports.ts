@@ -34,6 +34,16 @@ export async function findAvailablePort(startingAt: number): Promise<number> {
   throw new Error("No available port found");
 }
 
+/** Polls until nothing answers on the port anymore, e.g. after asking an occupant to stop. */
+export async function waitForPortFree(port: number, timeoutMs = 10_000): Promise<boolean> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if ((await occupantOf(port)) === null) return true;
+    await new Promise((resolve) => setTimeout(resolve, 200));
+  }
+  return (await occupantOf(port)) === null;
+}
+
 /**
  * Best-effort lookup of who is listening on a port. Uses the platform's
  * native tooling since Node has no portable API for this:
@@ -68,6 +78,19 @@ async function occupantOfUnix(port: number): Promise<PortOccupant | null> {
   } catch {
     return null;
   }
+}
+
+/** Stops a process this app does not itself supervise (an external port occupant). */
+export async function killProcess(pid: number, force = false): Promise<void> {
+  if (process.platform === "win32") {
+    // Windows has no real SIGTERM equivalent: taskkill without /F just sends
+    // WM_CLOSE, which most console/child processes ignore or outright refuse
+    // ("this process can only be stopped by force"). Always force on Windows,
+    // matching what Node's own child.kill() does under the hood there anyway.
+    await execFileAsync("taskkill", ["/pid", String(pid), "/t", "/f"]);
+    return;
+  }
+  process.kill(pid, force ? "SIGKILL" : "SIGTERM");
 }
 
 async function occupantOfWindows(port: number): Promise<PortOccupant | null> {

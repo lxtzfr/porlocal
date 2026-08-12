@@ -30,3 +30,8 @@ export function resolveServer(config: PorlocalConfig, ref: string): ResolvedServ
   }
   return matches.length === 1 ? matches[0] : null;
 }
+
+/** Resolves a project by id or by name. */
+export function resolveProject(config: PorlocalConfig, ref: string): ProjectConfig | null {
+  return config.projects.find((project) => project.id === ref || project.name.toLowerCase() === ref.toLowerCase()) ?? null;
+}

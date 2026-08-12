@@ -6,6 +6,7 @@ import { loadConfig } from "../core/config-store.js";
 import { checkServerHealth } from "../core/health.js";
 import { appendLog } from "../core/logs.js";
 import { resolveServer } from "../core/lookup.js";
+import { occupantOf } from "../core/ports.js";
 
 const HEALTH_INTERVAL_MS = 2000;
 const RESTART_DELAY_MS = 1000;
@@ -14,6 +15,13 @@ interface ManagedProcess {
   child: ChildProcess;
   manualStop: boolean;
   healthTimer: ReturnType<typeof setInterval> | null;
+  /**
+   * `spawn(cmd, { shell: true })` makes `child.pid` the shell's pid (cmd.exe
+   * / sh), not the real process listening on the port — that's a grandchild.
+   * We resolve it via the OS port lookup so kill-port/take-over can
+   * recognize a managed server's real pid and refuse to touch it.
+   */
+  listenPid: number | null;
 }
 
 export interface LogEvent {
@@ -33,6 +41,14 @@ export class Supervisor extends EventEmitter<SupervisorEvents> {
 
   status(): ServerState[] {
     return [...this.states.values()];
+  }
+
+  /** True if this pid belongs to a process we spawned — kill-port must never touch these, use stop/restart instead. */
+  isManagedPid(pid: number): boolean {
+    for (const managed of this.processes.values()) {
+      if (managed.child.pid === pid || managed.listenPid === pid) return true;
+    }
+    return false;
   }
 
   stateOf(serverId: string): ServerState {
@@ -106,7 +122,7 @@ export class Supervisor extends EventEmitter<SupervisorEvents> {
     if (server.port !== null) env.PORT = String(server.port);
 
     const child = spawn(server.command, { shell: true, cwd, env });
-    const managed: ManagedProcess = { child, manualStop: false, healthTimer: null };
+    const managed: ManagedProcess = { child, manualStop: false, healthTimer: null, listenPid: null };
     this.processes.set(server.id, managed);
     this.setState(server.id, { status: "starting", pid: child.pid ?? null, startedAt: new Date().toISOString() });
 
@@ -123,6 +139,11 @@ export class Supervisor extends EventEmitter<SupervisorEvents> {
       return;
     }
     managed.healthTimer = setInterval(() => {
+      if (server.port !== null) {
+        occupantOf(server.port).then((occupant) => {
+          managed.listenPid = occupant?.pid ?? null;
+        });
+      }
       checkServerHealth(server).then((healthy) => {
         if (!this.processes.has(server.id)) return;
         this.setState(server.id, { status: healthy ? "running" : "starting" });

@@ -1,15 +1,28 @@
 #!/usr/bin/env node
 import path from "node:path";
+import readline from "node:readline/promises";
 import { Command } from "commander";
 import type { ProjectConfig, ServerConfig, ServerState } from "@porlocal/core";
 import { loadConfig, saveConfig } from "../core/config-store.js";
 import { detectSuggestions } from "../core/command-detector.js";
 import { generateId } from "../core/ids.js";
-import { resolveServer } from "../core/lookup.js";
 import { occupantOf, isPortFree } from "../core/ports.js";
 import { daemonRequest, peekDaemon } from "./daemon-client.js";
 
 const program = new Command();
+
+/** Never kills anything without an explicit yes — from a human prompt or --yes for scripts/agents. */
+async function confirm(question: string, assumeYes: boolean | undefined): Promise<boolean> {
+  if (assumeYes) return true;
+  if (!process.stdin.isTTY) {
+    console.error(`${question} Re-run with --yes to confirm in a non-interactive shell.`);
+    return false;
+  }
+  const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+  const answer = await rl.question(`${question} [y/N] `);
+  rl.close();
+  return answer.trim().toLowerCase() === "y";
+}
 
 program.name("porlocal").description("Dashboard for your local dev servers").version("0.1.0");
 
@@ -117,26 +130,16 @@ program
       autoRestart: boolean;
       start?: boolean;
     }) => {
-      const config = loadConfig();
-      const project = config.projects.find((p) => p.id === options.project || p.name === options.project);
-      if (!project) {
-        console.error(`Unknown project: ${options.project}`);
-        process.exitCode = 1;
-        return;
-      }
-      const server: ServerConfig = {
-        id: generateId("srv"),
+      const server = await daemonRequest<ServerConfig>("POST", "/servers/add", {
+        project: options.project,
         name: options.name,
         command: options.command,
         port: options.port ? Number(options.port) : null,
         directory: options.directory ?? null,
-        env: {},
         healthURL: options.healthUrl ?? null,
         autoRestart: options.autoRestart,
-      };
-      project.servers.push(server);
-      saveConfig(config);
-      console.log(`Added server ${project.name}/${server.name} (${server.id})`);
+      });
+      console.log(`Added server ${options.project}/${server.name} (${server.id})`);
       if (options.start) {
         await daemonRequest("POST", "/start", { server: server.id });
         console.log("Started.");
@@ -145,19 +148,52 @@ program
   );
 
 program
+  .command("update-server <server>")
+  .description("Update fields of an existing server (by id, name, or project/name)")
+  .option("--name <name>", "new name")
+  .option("--command <command>", "new shell command")
+  .option("--port <port>", "new port (use 'none' to clear)")
+  .option("--directory <directory>", "new directory relative to the project root")
+  .option("--health-url <url>", "new health check URL or path")
+  .option("--auto-restart", "enable auto-restart on crash")
+  .option("--no-auto-restart", "disable auto-restart on crash")
+  .action(
+    async (
+      ref: string,
+      options: {
+        name?: string;
+        command?: string;
+        port?: string;
+        directory?: string;
+        healthUrl?: string;
+        autoRestart?: boolean;
+      },
+    ) => {
+      const patch: Partial<ServerConfig> = {};
+      if (options.name !== undefined) patch.name = options.name;
+      if (options.command !== undefined) patch.command = options.command;
+      if (options.port !== undefined) patch.port = options.port === "none" ? null : Number(options.port);
+      if (options.directory !== undefined) patch.directory = options.directory;
+      if (options.healthUrl !== undefined) patch.healthURL = options.healthUrl;
+      if (options.autoRestart !== undefined) patch.autoRestart = options.autoRestart;
+
+      if (Object.keys(patch).length === 0) {
+        console.error("Nothing to update — pass at least one option.");
+        process.exitCode = 1;
+        return;
+      }
+      const server = await daemonRequest<ServerConfig>("POST", "/servers/update", { server: ref, patch });
+      console.log(`Updated ${server.name}: ${server.command} (port ${server.port ?? "n/a"})`);
+      console.log("Restart the server for the change to take effect if it is currently running.");
+    },
+  );
+
+program
   .command("remove <server>")
   .description("Remove a server (by id, name, or project/name)")
-  .action((ref: string) => {
-    const config = loadConfig();
-    const found = resolveServer(config, ref);
-    if (!found) {
-      console.error(`Unknown server: ${ref}`);
-      process.exitCode = 1;
-      return;
-    }
-    found.project.servers = found.project.servers.filter((server) => server.id !== found.server.id);
-    saveConfig(config);
-    console.log(`Removed ${found.project.name}/${found.server.name}`);
+  .action(async (ref: string) => {
+    const data = await daemonRequest<{ removed: string }>("POST", "/servers/remove", { server: ref });
+    console.log(`Removed ${data.removed}`);
   });
 
 program
@@ -194,6 +230,56 @@ program
       `/logs?server=${encodeURIComponent(ref)}&tail=${encodeURIComponent(options.tail)}`,
     );
     for (const line of data.lines) console.log(line);
+  });
+
+program
+  .command("kill-port <port>")
+  .description("Stop whatever is listening on a port (never a server porlocal supervises — use stop for those)")
+  .option("--force", "send SIGKILL instead of SIGTERM")
+  .option("--yes", "skip the confirmation prompt")
+  .action(async (portArg: string, options: { force?: boolean; yes?: boolean }) => {
+    const port = Number(portArg);
+    const occupant = await occupantOf(port);
+    if (!occupant) {
+      console.log(`Port ${port} is already free.`);
+      return;
+    }
+    const proceed = await confirm(`Stop ${occupant.command} (pid ${occupant.pid}) on port ${port}?`, options.yes);
+    if (!proceed) {
+      console.log("Aborted.");
+      return;
+    }
+    const data = await daemonRequest<{ pid: number; command: string }>("POST", "/ports/kill", {
+      port,
+      force: options.force === true,
+    });
+    console.log(`Stopped ${data.command} (pid ${data.pid}).`);
+  });
+
+program
+  .command("take-over <server>")
+  .description("Stop the external process on a server's configured port, then start it under porlocal")
+  .option("--yes", "skip the confirmation prompt")
+  .action(async (ref: string, options: { yes?: boolean }) => {
+    const config = loadConfig();
+    const port = config.projects
+      .flatMap((project) => project.servers)
+      .find((server) => server.id === ref || server.name === ref)?.port;
+    const occupant = port ? await occupantOf(port) : null;
+
+    if (occupant) {
+      const proceed = await confirm(
+        `Stop ${occupant.command} (pid ${occupant.pid}) currently on port ${port} and start ${ref} under porlocal?`,
+        options.yes,
+      );
+      if (!proceed) {
+        console.log("Aborted.");
+        return;
+      }
+    }
+
+    const state = await daemonRequest<ServerState>("POST", "/take-over", { server: ref });
+    console.log(`${ref}: ${state.status} (pid ${state.pid ?? "n/a"})`);
   });
 
 program.parseAsync(process.argv);

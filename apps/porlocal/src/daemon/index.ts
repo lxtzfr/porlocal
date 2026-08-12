@@ -1,7 +1,10 @@
 import http from "node:http";
-import { loadConfig } from "../core/config-store.js";
+import type { ServerConfig } from "@porlocal/core";
+import { loadConfig, saveConfig } from "../core/config-store.js";
+import { generateId } from "../core/ids.js";
 import { tailLogs } from "../core/logs.js";
-import { resolveServer } from "../core/lookup.js";
+import { resolveProject, resolveServer } from "../core/lookup.js";
+import { killProcess, occupantOf, waitForPortFree } from "../core/ports.js";
 import { Supervisor } from "./supervisor.js";
 
 /**
@@ -52,10 +55,19 @@ function readJsonBody(req: http.IncomingMessage): Promise<Record<string, unknown
 }
 
 function requireServerId(ref: unknown): string {
+  return requireResolvedServer(ref).server.id;
+}
+
+function requireResolvedServer(ref: unknown) {
   if (typeof ref !== "string" || ref.length === 0) throw new Error("Missing 'server' field");
   const found = resolveServer(loadConfig(), ref);
   if (!found) throw new Error(`Unknown server: ${ref}`);
-  return found.server.id;
+  return found;
+}
+
+function requireString(value: unknown, field: string): string {
+  if (typeof value !== "string" || value.length === 0) throw new Error(`Missing '${field}' field`);
+  return value;
 }
 
 function createServer(): http.Server {
@@ -134,6 +146,97 @@ function createServer(): http.Server {
         const serverId = requireServerId(body.server);
         await supervisor.restart(serverId);
         sendJson(res, 200, { ok: true, data: supervisor.stateOf(serverId) });
+        return;
+      }
+
+      if (req.method === "POST" && url.pathname === "/servers/add") {
+        const body = await readJsonBody(req);
+        const config = loadConfig();
+        const project = resolveProject(config, requireString(body.project, "project"));
+        if (!project) throw new Error(`Unknown project: ${String(body.project)}`);
+
+        const server: ServerConfig = {
+          id: generateId("srv"),
+          name: requireString(body.name, "name"),
+          command: requireString(body.command, "command"),
+          port: typeof body.port === "number" ? body.port : null,
+          directory: typeof body.directory === "string" ? body.directory : null,
+          env: typeof body.env === "object" && body.env !== null ? (body.env as Record<string, string>) : {},
+          healthURL: typeof body.healthURL === "string" ? body.healthURL : null,
+          autoRestart: body.autoRestart !== false,
+        };
+        project.servers.push(server);
+        saveConfig(config);
+        sendJson(res, 200, { ok: true, data: server });
+        return;
+      }
+
+      if (req.method === "POST" && url.pathname === "/servers/update") {
+        const body = await readJsonBody(req);
+        const { server } = requireResolvedServer(body.server);
+        const patch = (body.patch ?? {}) as Partial<ServerConfig>;
+        const config = loadConfig();
+        const found = resolveServer(config, server.id);
+        if (!found) throw new Error(`Unknown server: ${server.id}`);
+
+        Object.assign(found.server, {
+          ...(patch.name !== undefined && { name: patch.name }),
+          ...(patch.command !== undefined && { command: patch.command }),
+          ...(patch.port !== undefined && { port: patch.port }),
+          ...(patch.directory !== undefined && { directory: patch.directory }),
+          ...(patch.env !== undefined && { env: patch.env }),
+          ...(patch.healthURL !== undefined && { healthURL: patch.healthURL }),
+          ...(patch.autoRestart !== undefined && { autoRestart: patch.autoRestart }),
+        });
+        saveConfig(config);
+        sendJson(res, 200, { ok: true, data: found.server });
+        return;
+      }
+
+      if (req.method === "POST" && url.pathname === "/servers/remove") {
+        const body = await readJsonBody(req);
+        const { project, server } = requireResolvedServer(body.server);
+        supervisor.stop(server.id);
+        const config = loadConfig();
+        const target = resolveServer(config, server.id);
+        if (target) {
+          target.project.servers = target.project.servers.filter((s) => s.id !== server.id);
+          saveConfig(config);
+        }
+        sendJson(res, 200, { ok: true, data: { removed: `${project.name}/${server.name}` } });
+        return;
+      }
+
+      if (req.method === "POST" && url.pathname === "/ports/kill") {
+        const body = await readJsonBody(req);
+        if (typeof body.port !== "number") throw new Error("Missing 'port' field");
+        const occupant = await occupantOf(body.port);
+        if (!occupant) throw new Error(`Port ${body.port} is already free`);
+        if (supervisor.isManagedPid(occupant.pid)) {
+          throw new Error("This port is held by a server porlocal supervises — use stop/restart instead of kill-port");
+        }
+        await killProcess(occupant.pid, body.force === true);
+        sendJson(res, 200, { ok: true, data: occupant });
+        return;
+      }
+
+      if (req.method === "POST" && url.pathname === "/take-over") {
+        const body = await readJsonBody(req);
+        const { server } = requireResolvedServer(body.server);
+        if (server.port === null) throw new Error("This server has no configured port to take over");
+
+        const occupant = await occupantOf(server.port);
+        if (occupant) {
+          if (supervisor.isManagedPid(occupant.pid)) {
+            throw new Error("This server is already running under porlocal");
+          }
+          await killProcess(occupant.pid);
+          const freed = await waitForPortFree(server.port);
+          if (!freed) throw new Error(`Port ${server.port} did not free up after stopping pid ${occupant.pid}`);
+        }
+
+        supervisor.start(server.id);
+        sendJson(res, 200, { ok: true, data: supervisor.stateOf(server.id) });
         return;
       }
 
