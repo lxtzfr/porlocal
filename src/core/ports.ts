@@ -72,15 +72,19 @@ async function occupantOfUnix(port: number): Promise<PortOccupant | null> {
 
 async function occupantOfWindows(port: number): Promise<PortOccupant | null> {
   try {
-    const { stdout } = await execFileAsync("netstat", ["-ano", "-p", "TCP"]);
+    // `netstat -p TCP` silently drops IPv6-only listeners (e.g. Vite binding
+    // [::1]) on some Windows builds, so filter for the TCP protocol column
+    // ourselves on the unfiltered `-ano` output instead.
+    const { stdout } = await execFileAsync("netstat", ["-ano"]);
     const match = stdout
       .split("\n")
       .map((line) => line.trim())
       .find((line) => {
         const parts = line.split(/\s+/);
+        const protocol = parts[0] ?? "";
         const localAddress = parts[1] ?? "";
         const state = parts[3] ?? "";
-        return localAddress.endsWith(`:${port}`) && state === "LISTENING";
+        return protocol === "TCP" && localAddress.endsWith(`:${port}`) && state === "LISTENING";
       });
     if (!match) return null;
     const pid = Number(match.split(/\s+/).pop());

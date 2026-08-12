@@ -1,4 +1,5 @@
 import { spawn, type ChildProcess } from "node:child_process";
+import { EventEmitter } from "node:events";
 import path from "node:path";
 import { loadConfig } from "../core/config-store.js";
 import { checkServerHealth } from "../core/health.js";
@@ -15,8 +16,18 @@ interface ManagedProcess {
   healthTimer: ReturnType<typeof setInterval> | null;
 }
 
+export interface LogEvent {
+  serverId: string;
+  line: string;
+}
+
+interface SupervisorEvents {
+  state: [ServerState];
+  log: [LogEvent];
+}
+
 /** Runs and watches server processes. Never kills anything the CLI/API didn't ask it to. */
-export class Supervisor {
+export class Supervisor extends EventEmitter<SupervisorEvents> {
   private processes = new Map<string, ManagedProcess>();
   private states = new Map<string, ServerState>();
 
@@ -99,8 +110,8 @@ export class Supervisor {
     this.processes.set(server.id, managed);
     this.setState(server.id, { status: "starting", pid: child.pid ?? null, startedAt: new Date().toISOString() });
 
-    child.stdout?.on("data", (chunk: Buffer) => appendLog(server.id, chunk.toString()));
-    child.stderr?.on("data", (chunk: Buffer) => appendLog(server.id, chunk.toString()));
+    child.stdout?.on("data", (chunk: Buffer) => this.captureOutput(server.id, chunk));
+    child.stderr?.on("data", (chunk: Buffer) => this.captureOutput(server.id, chunk));
     child.on("exit", (code) => this.handleExit(server, managed, code));
 
     this.startHealthLoop(server, managed);
@@ -122,7 +133,9 @@ export class Supervisor {
   private handleExit(server: ServerConfig, managed: ManagedProcess, code: number | null): void {
     if (managed.healthTimer) clearInterval(managed.healthTimer);
     this.processes.delete(server.id);
-    appendLog(server.id, `[porlocal] process exited with code ${code}`);
+    const exitLine = `[porlocal] process exited with code ${code}`;
+    appendLog(server.id, exitLine);
+    this.emit("log", { serverId: server.id, line: exitLine });
 
     if (managed.manualStop) {
       this.setState(server.id, { status: "stopped", pid: null, startedAt: null });
@@ -141,8 +154,18 @@ export class Supervisor {
     }
   }
 
+  private captureOutput(serverId: string, chunk: Buffer): void {
+    const text = chunk.toString();
+    appendLog(serverId, text);
+    for (const line of text.split(/\r?\n/).filter((l) => l.length > 0)) {
+      this.emit("log", { serverId, line });
+    }
+  }
+
   private setState(serverId: string, patch: Partial<Omit<ServerState, "serverId">>): void {
     const current = this.stateOf(serverId);
-    this.states.set(serverId, { ...current, ...patch, serverId });
+    const next: ServerState = { ...current, ...patch, serverId };
+    this.states.set(serverId, next);
+    this.emit("state", next);
   }
 }
