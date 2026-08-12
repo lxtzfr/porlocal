@@ -1,0 +1,26 @@
+{
+  "name": "porlocal",
+  "version": "0.1.0",
+  "description": "Cross-platform dashboard for your local dev servers.",
+  "type": "module",
+  "bin": {
+    "porlocal": "./dist/cli/index.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsx src/cli/index.ts",
+    "daemon:dev": "tsx src/daemon/index.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "commander": "^12.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  }
+}
