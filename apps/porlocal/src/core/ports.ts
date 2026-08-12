@@ -80,6 +80,94 @@ async function occupantOfUnix(port: number): Promise<PortOccupant | null> {
   }
 }
 
+export interface PortListener {
+  port: number;
+  pid: number;
+  command: string;
+}
+
+/** Every process currently listening on a TCP port, for the "system ports" view. */
+export async function listListeningPorts(): Promise<PortListener[]> {
+  if (process.platform === "win32") return listListeningPortsWindows();
+  return listListeningPortsUnix();
+}
+
+async function listListeningPortsUnix(): Promise<PortListener[]> {
+  try {
+    const { stdout } = await execFileAsync("lsof", ["-nP", "-iTCP", "-sTCP:LISTEN", "-FpcLn"]);
+    const listeners: PortListener[] = [];
+    let pid: number | null = null;
+    let command = "";
+    for (const line of stdout.split("\n")) {
+      const tag = line[0];
+      const value = line.slice(1);
+      if (tag === "p") {
+        pid = Number(value);
+        command = "";
+      } else if (tag === "c") {
+        command = value;
+      } else if (tag === "n" && pid !== null) {
+        const port = portFromEndpoint(value);
+        if (port !== null) listeners.push({ port, pid, command: command || "unknown" });
+      }
+    }
+    return listeners;
+  } catch {
+    return [];
+  }
+}
+
+function portFromEndpoint(endpoint: string): number | null {
+  const local = endpoint.split("->")[0] ?? endpoint;
+  const idx = local.lastIndexOf(":");
+  if (idx === -1) return null;
+  const port = Number(local.slice(idx + 1));
+  return Number.isFinite(port) ? port : null;
+}
+
+async function listListeningPortsWindows(): Promise<PortListener[]> {
+  try {
+    const { stdout } = await execFileAsync("netstat", ["-ano"]);
+    const entries: { port: number; pid: number }[] = [];
+    const pids = new Set<number>();
+
+    for (const line of stdout.split("\n")) {
+      const parts = line.trim().split(/\s+/);
+      if (parts[0] !== "TCP" || parts[3] !== "LISTENING") continue;
+      const localAddress = parts[1] ?? "";
+      const pid = Number(parts[4]);
+      const idx = localAddress.lastIndexOf(":");
+      if (idx === -1 || !Number.isFinite(pid)) continue;
+      const port = Number(localAddress.slice(idx + 1));
+      if (!Number.isFinite(port)) continue;
+      entries.push({ port, pid });
+      pids.add(pid);
+    }
+
+    const commands = await resolveCommandNames(pids);
+    return entries.map(({ port, pid }) => ({ port, pid, command: commands.get(pid) ?? "unknown" }));
+  } catch {
+    return [];
+  }
+}
+
+async function resolveCommandNames(pids: Set<number>): Promise<Map<number, string>> {
+  const map = new Map<number, string>();
+  if (pids.size === 0) return map;
+  try {
+    const { stdout } = await execFileAsync("tasklist", ["/FO", "CSV", "/NH"]);
+    for (const line of stdout.split("\n")) {
+      const cells = line.split('","').map((cell) => cell.replace(/^"|"\r?$/g, ""));
+      const name = cells[0];
+      const pid = Number(cells[1]);
+      if (name && pids.has(pid)) map.set(pid, name);
+    }
+  } catch {
+    // Leave unresolved pids as "unknown" rather than failing the whole listing.
+  }
+  return map;
+}
+
 /** Stops a process this app does not itself supervise (an external port occupant). */
 export async function killProcess(pid: number, force = false): Promise<void> {
   if (process.platform === "win32") {

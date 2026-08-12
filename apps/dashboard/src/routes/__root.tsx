@@ -1,5 +1,5 @@
-import { HeadContent, Scripts, createRootRoute } from '@tanstack/react-router'
-import { ColorSchemeScript, MantineProvider, mantineHtmlProps } from '@mantine/core'
+import { HeadContent, Link, Outlet, Scripts, createRootRoute } from '@tanstack/react-router'
+import { ColorSchemeScript, Group, MantineProvider, Text, mantineHtmlProps } from '@mantine/core'
 
 import mantineCss from '@mantine/core/styles.css?url'
 import appCss from '../styles.css?url'
@@ -29,8 +29,26 @@ export const Route = createRootRoute({
       },
     ],
   }),
+  component: RootLayout,
   shellComponent: RootDocument,
 })
+
+function RootLayout() {
+  return (
+    <>
+      <Group px="lg" py="sm" gap="lg" style={{ borderBottom: '1px solid light-dark(#e5e5e5, #373a40)' }}>
+        <Text fw={700}>Porlocal</Text>
+        <Link to="/" activeOptions={{ exact: true }} activeProps={{ style: { fontWeight: 600 } }}>
+          Dashboard
+        </Link>
+        <Link to="/ports" activeProps={{ style: { fontWeight: 600 } }}>
+          System ports
+        </Link>
+      </Group>
+      <Outlet />
+    </>
+  )
+}
 
 function RootDocument({ children }: { children: React.ReactNode }) {
   return (

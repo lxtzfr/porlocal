@@ -1,4 +1,4 @@
-import type { ProjectConfig, ServerState } from "@porlocal/core";
+import type { PortListener, ProjectConfig, ServerState } from "@porlocal/core";
 
 export const PORLOCAL_API_BASE = import.meta.env.VITE_PORLOCAL_API ?? "http://127.0.0.1:7737";
 
@@ -37,4 +37,16 @@ export function restartServer(serverId: string): Promise<ServerState> {
 
 export function fetchLogs(serverId: string, tail = 200): Promise<{ lines: string[] }> {
   return request("GET", `/logs?server=${encodeURIComponent(serverId)}&tail=${tail}`);
+}
+
+export function fetchPorts(): Promise<PortListener[]> {
+  return request("GET", "/ports");
+}
+
+export function killPort(port: number, force = false): Promise<{ pid: number; command: string }> {
+  return request("POST", "/ports/kill", { port, force });
+}
+
+export function takeOverServer(serverId: string): Promise<ServerState> {
+  return request("POST", "/take-over", { server: serverId });
 }

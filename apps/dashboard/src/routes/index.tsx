@@ -3,7 +3,8 @@ import { useState } from "react";
 import { Alert, Badge, Button, Group, Stack, Table, Text, Title } from "@mantine/core";
 import type { ServerStatus } from "@porlocal/core";
 import { usePorlocalEvents } from "../hooks/use-porlocal-events";
-import { startServer, stopServer, restartServer } from "../lib/porlocal-client";
+import { usePortsSnapshot } from "../hooks/use-ports-snapshot";
+import { startServer, stopServer, restartServer, takeOverServer } from "../lib/porlocal-client";
 import { LogsDrawer } from "../components/logs-drawer";
 
 export const Route = createFileRoute("/")({ component: Dashboard });
@@ -17,6 +18,7 @@ const STATUS_COLOR: Record<ServerStatus, string> = {
 
 function Dashboard() {
   const { connected, projects, states, subscribeLogs } = usePorlocalEvents();
+  const { ports, refresh: refreshPorts } = usePortsSnapshot();
   const [logsFor, setLogsFor] = useState<{ id: string; label: string } | null>(null);
   const [pending, setPending] = useState<string | null>(null);
 
@@ -24,15 +26,21 @@ function Dashboard() {
     setPending(serverId);
     try {
       await action(serverId);
+      refreshPorts();
     } finally {
       setPending(null);
     }
   }
 
+  function takeOverWithConfirm(serverId: string, port: number, command: string) {
+    if (!window.confirm(`Stop ${command} on port ${port} and start this server under porlocal?`)) return;
+    void run(takeOverServer, serverId);
+  }
+
   return (
     <Stack p="lg" gap="lg">
       <Group justify="space-between">
-        <Title order={2}>Porlocal</Title>
+        <Title order={2}>Dashboard</Title>
         <Badge color={connected ? "green" : "red"} variant="light">
           {connected ? "daemon connected" : "daemon offline"}
         </Badge>
@@ -63,6 +71,10 @@ function Dashboard() {
             <Table.Tbody>
               {project.servers.map((server) => {
                 const status = states[server.id]?.status ?? "stopped";
+                const conflict =
+                  status === "stopped" && server.port !== null
+                    ? ports.find((listener) => listener.port === server.port && listener.managedBy === null)
+                    : undefined;
                 return (
                   <Table.Tr key={server.id}>
                     <Table.Td>{server.name}</Table.Td>
@@ -71,7 +83,14 @@ function Dashboard() {
                         {status}
                       </Badge>
                     </Table.Td>
-                    <Table.Td>{server.port ?? "—"}</Table.Td>
+                    <Table.Td>
+                      {server.port ?? "—"}
+                      {conflict && (
+                        <Text span size="xs" c="red" ml={6}>
+                          busy ({conflict.command})
+                        </Text>
+                      )}
+                    </Table.Td>
                     <Table.Td>
                       <Text size="sm" c="dimmed">
                         {server.command}
@@ -79,15 +98,27 @@ function Dashboard() {
                     </Table.Td>
                     <Table.Td>
                       <Group gap="xs" justify="flex-end" wrap="nowrap">
-                        <Button
-                          size="xs"
-                          variant="light"
-                          loading={pending === server.id}
-                          disabled={status === "running" || status === "starting"}
-                          onClick={() => run(startServer, server.id)}
-                        >
-                          Start
-                        </Button>
+                        {conflict ? (
+                          <Button
+                            size="xs"
+                            variant="light"
+                            color="red"
+                            loading={pending === server.id}
+                            onClick={() => takeOverWithConfirm(server.id, conflict.port, conflict.command)}
+                          >
+                            Take over
+                          </Button>
+                        ) : (
+                          <Button
+                            size="xs"
+                            variant="light"
+                            loading={pending === server.id}
+                            disabled={status === "running" || status === "starting"}
+                            onClick={() => run(startServer, server.id)}
+                          >
+                            Start
+                          </Button>
+                        )}
                         <Button
                           size="xs"
                           variant="light"

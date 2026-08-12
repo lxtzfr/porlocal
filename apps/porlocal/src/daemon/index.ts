@@ -4,7 +4,7 @@ import { loadConfig, saveConfig } from "../core/config-store.js";
 import { generateId } from "../core/ids.js";
 import { tailLogs } from "../core/logs.js";
 import { resolveProject, resolveServer } from "../core/lookup.js";
-import { killProcess, occupantOf, waitForPortFree } from "../core/ports.js";
+import { killProcess, listListeningPorts, occupantOf, waitForPortFree } from "../core/ports.js";
 import { Supervisor } from "./supervisor.js";
 
 /**
@@ -204,6 +204,32 @@ function createServer(): http.Server {
           saveConfig(config);
         }
         sendJson(res, 200, { ok: true, data: { removed: `${project.name}/${server.name}` } });
+        return;
+      }
+
+      if (req.method === "GET" && url.pathname === "/ports") {
+        const config = loadConfig();
+        const configuredByPort = new Map<number, { project: string; server: string }>();
+        for (const project of config.projects) {
+          for (const server of project.servers) {
+            if (server.port !== null) configuredByPort.set(server.port, { project: project.name, server: server.name });
+          }
+        }
+        const listeners = await listListeningPorts();
+        const seen = new Set<string>();
+        const data = [];
+        for (const listener of listeners) {
+          const key = `${listener.port}:${listener.pid}`;
+          if (seen.has(key)) continue; // IPv4 and IPv6 bindings of the same process both list here.
+          seen.add(key);
+          const configured = configuredByPort.get(listener.port);
+          // Only trust "managed" when this exact pid is the one the supervisor
+          // actually spawned — a configured port squatted by an unrelated
+          // process must still show up as external and killable.
+          const managedBy = configured && supervisor.isManagedPid(listener.pid) ? configured : null;
+          data.push({ ...listener, managedBy });
+        }
+        sendJson(res, 200, { ok: true, data });
         return;
       }
 

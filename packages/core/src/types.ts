@@ -33,3 +33,10 @@ export interface ServerState {
   startedAt: string | null;
   restartCount: number;
 }
+
+export interface PortListener {
+  port: number;
+  pid: number;
+  command: string;
+  managedBy: { project: string; server: string } | null;
+}
