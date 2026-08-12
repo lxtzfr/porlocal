@@ -6,6 +6,7 @@ import { usePorlocalEvents } from "../hooks/use-porlocal-events";
 import { usePortsSnapshot } from "../hooks/use-ports-snapshot";
 import { startServer, stopServer, restartServer, takeOverServer } from "../lib/porlocal-client";
 import { LogsDrawer } from "../components/logs-drawer";
+import { DaemonOffline } from "../components/daemon-offline";
 
 export const Route = createFileRoute("/")({ component: Dashboard });
 
@@ -17,7 +18,7 @@ const STATUS_COLOR: Record<ServerStatus, string> = {
 };
 
 function Dashboard() {
-  const { connected, projects, states, subscribeLogs } = usePorlocalEvents();
+  const { connected, projects, states, subscribeLogs, reconnect } = usePorlocalEvents();
   const { ports, refresh: refreshPorts } = usePortsSnapshot();
   const [logsFor, setLogsFor] = useState<{ id: string; label: string } | null>(null);
   const [pending, setPending] = useState<string | null>(null);
@@ -37,12 +38,21 @@ function Dashboard() {
     void run(takeOverServer, serverId);
   }
 
+  if (!connected) {
+    return (
+      <Stack p="lg" gap="lg">
+        <Title order={2}>Dashboard</Title>
+        <DaemonOffline onRetry={reconnect} />
+      </Stack>
+    );
+  }
+
   return (
     <Stack p="lg" gap="lg">
       <Group justify="space-between">
         <Title order={2}>Dashboard</Title>
-        <Badge color={connected ? "green" : "red"} variant="light">
-          {connected ? "daemon connected" : "daemon offline"}
+        <Badge color="green" variant="light">
+          daemon connected
         </Badge>
       </Group>
 

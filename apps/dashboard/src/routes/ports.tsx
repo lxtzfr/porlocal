@@ -3,11 +3,12 @@ import { useState } from "react";
 import { Badge, Button, Group, Loader, Stack, Table, Text, Title, Tooltip } from "@mantine/core";
 import { usePortsSnapshot } from "../hooks/use-ports-snapshot";
 import { killPort } from "../lib/porlocal-client";
+import { DaemonOffline } from "../components/daemon-offline";
 
 export const Route = createFileRoute("/ports")({ component: SystemPorts });
 
 function SystemPorts() {
-  const { ports, loading, refresh } = usePortsSnapshot();
+  const { ports, loading, connected, refresh } = usePortsSnapshot();
   const [pending, setPending] = useState<number | null>(null);
 
   async function handleKill(port: number, command: string) {
@@ -21,6 +22,15 @@ function SystemPorts() {
     } finally {
       setPending(null);
     }
+  }
+
+  if (!loading && !connected) {
+    return (
+      <Stack p="lg" gap="md">
+        <Title order={2}>System ports</Title>
+        <DaemonOffline onRetry={refresh} />
+      </Stack>
+    );
   }
 
   return (

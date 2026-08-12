@@ -17,6 +17,7 @@ export function usePorlocalEvents() {
   const [connected, setConnected] = useState(false);
   const [projects, setProjects] = useState<ProjectConfig[]>([]);
   const [states, setStates] = useState<Record<string, ServerState>>({});
+  const [retryToken, setRetryToken] = useState(0);
   const logListeners = useRef(new Map<string, Set<(line: string) => void>>());
 
   useEffect(() => {
@@ -42,7 +43,10 @@ export function usePorlocalEvents() {
     });
 
     return () => source.close();
-  }, []);
+    // The browser's native EventSource already auto-reconnects on its own,
+    // but bumping retryToken forces an immediate new attempt instead of
+    // waiting out its backoff — used by the "Retry" button on offline pages.
+  }, [retryToken]);
 
   function subscribeLogs(serverId: string, listener: (line: string) => void): () => void {
     const listeners = logListeners.current.get(serverId) ?? new Set();
@@ -51,5 +55,9 @@ export function usePorlocalEvents() {
     return () => listeners.delete(listener);
   }
 
-  return { connected, projects, states, subscribeLogs };
+  function reconnect(): void {
+    setRetryToken((token) => token + 1);
+  }
+
+  return { connected, projects, states, subscribeLogs, reconnect };
 }

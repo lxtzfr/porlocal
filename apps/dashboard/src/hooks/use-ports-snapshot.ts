@@ -8,12 +8,16 @@ const POLL_INTERVAL_MS = 5000;
 export function usePortsSnapshot() {
   const [ports, setPorts] = useState<PortListener[]>([]);
   const [loading, setLoading] = useState(true);
+  const [connected, setConnected] = useState(false);
 
   const refresh = useCallback(() => {
     fetchPorts()
-      .then(setPorts)
+      .then((data) => {
+        setPorts(data);
+        setConnected(true);
+      })
       .catch(() => {
-        // Daemon not reachable yet; keep the last known snapshot instead of clearing it.
+        setConnected(false);
       })
       .finally(() => setLoading(false));
   }, []);
@@ -24,5 +28,5 @@ export function usePortsSnapshot() {
     return () => clearInterval(timer);
   }, [refresh]);
 
-  return { ports, loading, refresh };
+  return { ports, loading, connected, refresh };
 }
