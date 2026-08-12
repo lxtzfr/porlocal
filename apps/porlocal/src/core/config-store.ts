@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
+import type { PorlocalConfig } from "@porlocal/core";
 import { configDir, configFile, logsDir } from "./paths.js";
-import type { PorlocalConfig } from "./types.js";
 
 const defaultConfig: PorlocalConfig = {
   version: 1,

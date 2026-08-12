@@ -1,11 +1,11 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import { EventEmitter } from "node:events";
 import path from "node:path";
+import type { ProjectConfig, ServerConfig, ServerState } from "@porlocal/core";
 import { loadConfig } from "../core/config-store.js";
 import { checkServerHealth } from "../core/health.js";
 import { appendLog } from "../core/logs.js";
 import { resolveServer } from "../core/lookup.js";
-import type { ProjectConfig, ServerConfig, ServerState } from "../core/types.js";
 
 const HEALTH_INTERVAL_MS = 2000;
 const RESTART_DELAY_MS = 1000;

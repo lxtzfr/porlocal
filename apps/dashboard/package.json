@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@mantine/core": "^9.5.1",
+    "@porlocal/core": "^0.1.0",
     "@mantine/hooks": "^9.5.1",
     "@tanstack/react-router": "latest",
     "@tanstack/react-start": "latest",

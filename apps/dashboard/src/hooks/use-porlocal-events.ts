@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { PORLOCAL_API_BASE, type ProjectConfig, type ServerState } from "../lib/porlocal-client";
+import type { ProjectConfig, ServerState } from "@porlocal/core";
+import { PORLOCAL_API_BASE } from "../lib/porlocal-client";
 
 interface LogEvent {
   serverId: string;

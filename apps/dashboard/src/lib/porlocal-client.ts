@@ -1,36 +1,6 @@
-// Mirrors src/core/types.ts and the daemon's HTTP envelope in the root
-// `porlocal` package. Duplicated here since the dashboard is a standalone
-// app, not (yet) part of a shared workspace.
+import type { ProjectConfig, ServerState } from "@porlocal/core";
 
 export const PORLOCAL_API_BASE = import.meta.env.VITE_PORLOCAL_API ?? "http://127.0.0.1:7737";
-
-export interface ServerConfig {
-  id: string;
-  name: string;
-  command: string;
-  port: number | null;
-  directory: string | null;
-  env: Record<string, string>;
-  healthURL: string | null;
-  autoRestart: boolean;
-}
-
-export interface ProjectConfig {
-  id: string;
-  name: string;
-  root: string;
-  servers: ServerConfig[];
-}
-
-export type ServerStatus = "stopped" | "starting" | "running" | "crashed";
-
-export interface ServerState {
-  serverId: string;
-  status: ServerStatus;
-  pid: number | null;
-  startedAt: string | null;
-  restartCount: number;
-}
 
 interface Envelope<T> {
   ok: boolean;

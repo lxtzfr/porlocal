@@ -1,8 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { Alert, Badge, Button, Group, Stack, Table, Text, Title } from "@mantine/core";
+import type { ServerStatus } from "@porlocal/core";
 import { usePorlocalEvents } from "../hooks/use-porlocal-events";
-import { startServer, stopServer, restartServer, type ServerStatus } from "../lib/porlocal-client";
+import { startServer, stopServer, restartServer } from "../lib/porlocal-client";
 import { LogsDrawer } from "../components/logs-drawer";
 
 export const Route = createFileRoute("/")({ component: Dashboard });

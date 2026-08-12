@@ -1,12 +1,12 @@
 #!/usr/bin/env node
 import path from "node:path";
 import { Command } from "commander";
+import type { ProjectConfig, ServerConfig, ServerState } from "@porlocal/core";
 import { loadConfig, saveConfig } from "../core/config-store.js";
 import { detectSuggestions } from "../core/command-detector.js";
 import { generateId } from "../core/ids.js";
 import { resolveServer } from "../core/lookup.js";
 import { occupantOf, isPortFree } from "../core/ports.js";
-import type { ProjectConfig, ServerConfig, ServerState } from "../core/types.js";
 import { daemonRequest, peekDaemon } from "./daemon-client.js";
 
 const program = new Command();

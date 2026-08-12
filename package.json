@@ -2,11 +2,12 @@
   "name": "porlocal-monorepo",
   "private": true,
   "workspaces": [
-    "apps/*"
+    "apps/*",
+    "packages/*"
   ],
   "scripts": {
-    "build": "npm run build --workspace=apps/porlocal",
-    "typecheck": "npm run typecheck --workspace=apps/porlocal && npm exec --workspace=apps/dashboard -- tsc --noEmit",
+    "build": "npm run build --workspace=packages/core && npm run build --workspace=apps/porlocal",
+    "typecheck": "npm run typecheck --workspace=packages/core && npm run typecheck --workspace=apps/porlocal && npm exec --workspace=apps/dashboard -- tsc --noEmit",
     "dashboard:dev": "npm run dev --workspace=apps/dashboard"
   }
 }

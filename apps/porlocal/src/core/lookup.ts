@@ -1,4 +1,4 @@
-import type { PorlocalConfig, ProjectConfig, ServerConfig } from "./types.js";
+import type { PorlocalConfig, ProjectConfig, ServerConfig } from "@porlocal/core";
 
 export interface ResolvedServer {
   project: ProjectConfig;
