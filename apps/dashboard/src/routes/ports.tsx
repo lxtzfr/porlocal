@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
-import { Badge, Button, Group, Loader, Stack, Table, Text, Title } from "@mantine/core";
+import { Badge, Button, Group, Loader, Stack, Table, Text, Title, Tooltip } from "@mantine/core";
 import { usePortsSnapshot } from "../hooks/use-ports-snapshot";
 import { killPort } from "../lib/porlocal-client";
 
@@ -42,6 +42,7 @@ function SystemPorts() {
             <Table.Th>Command</Table.Th>
             <Table.Th>PID</Table.Th>
             <Table.Th>Managed by</Table.Th>
+            <Table.Th>Launched from</Table.Th>
             <Table.Th />
           </Table.Tr>
         </Table.Thead>
@@ -63,6 +64,25 @@ function SystemPorts() {
                       external
                     </Text>
                   )}
+                </Table.Td>
+                <Table.Td style={{ maxWidth: 360 }}>
+                  {(() => {
+                    const label = listener.directory ?? listener.commandLine;
+                    if (!label) {
+                      return (
+                        <Text size="sm" c="dimmed">
+                          unknown
+                        </Text>
+                      );
+                    }
+                    return (
+                      <Tooltip label={label} multiline maw={480} openDelay={300}>
+                        <Text size="sm" c="dimmed" truncate="end">
+                          {label}
+                        </Text>
+                      </Tooltip>
+                    );
+                  })()}
                 </Table.Td>
                 <Table.Td>
                   {!listener.managedBy && (

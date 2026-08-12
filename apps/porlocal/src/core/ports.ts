@@ -84,6 +84,8 @@ export interface PortListener {
   port: number;
   pid: number;
   command: string;
+  /** Full invocation (args included) when available — the best identifying info on Windows, where cwd isn't. */
+  commandLine: string | null;
 }
 
 /** Every process currently listening on a TCP port, for the "system ports" view. */
@@ -95,7 +97,8 @@ export async function listListeningPorts(): Promise<PortListener[]> {
 async function listListeningPortsUnix(): Promise<PortListener[]> {
   try {
     const { stdout } = await execFileAsync("lsof", ["-nP", "-iTCP", "-sTCP:LISTEN", "-FpcLn"]);
-    const listeners: PortListener[] = [];
+    const entries: { port: number; pid: number; command: string }[] = [];
+    const pids = new Set<number>();
     let pid: number | null = null;
     let command = "";
     for (const line of stdout.split("\n")) {
@@ -108,13 +111,35 @@ async function listListeningPortsUnix(): Promise<PortListener[]> {
         command = value;
       } else if (tag === "n" && pid !== null) {
         const port = portFromEndpoint(value);
-        if (port !== null) listeners.push({ port, pid, command: command || "unknown" });
+        if (port !== null) {
+          entries.push({ port, pid, command: command || "unknown" });
+          pids.add(pid);
+        }
       }
     }
-    return listeners;
+    const commandLines = await resolveUnixCommandLines(pids);
+    return entries.map((entry) => ({ ...entry, commandLine: commandLines.get(entry.pid) ?? null }));
   } catch {
     return [];
   }
+}
+
+async function resolveUnixCommandLines(pids: Set<number>): Promise<Map<number, string>> {
+  const map = new Map<number, string>();
+  if (pids.size === 0) return map;
+  try {
+    const { stdout } = await execFileAsync("ps", ["-eo", "pid=,args="]);
+    for (const line of stdout.split("\n")) {
+      const trimmed = line.trim();
+      const spaceIdx = trimmed.indexOf(" ");
+      if (spaceIdx === -1) continue;
+      const pid = Number(trimmed.slice(0, spaceIdx));
+      if (pids.has(pid)) map.set(pid, trimmed.slice(spaceIdx + 1));
+    }
+  } catch {
+    // Leave unresolved pids without a command line rather than failing the whole listing.
+  }
+  return map;
 }
 
 function portFromEndpoint(endpoint: string): number | null {
@@ -144,28 +169,72 @@ async function listListeningPortsWindows(): Promise<PortListener[]> {
       pids.add(pid);
     }
 
-    const commands = await resolveCommandNames(pids);
-    return entries.map(({ port, pid }) => ({ port, pid, command: commands.get(pid) ?? "unknown" }));
+    const info = await resolveWindowsProcessInfo(pids);
+    return entries.map(({ port, pid }) => {
+      const found = info.get(pid);
+      return { port, pid, command: found?.command ?? "unknown", commandLine: found?.commandLine ?? null };
+    });
   } catch {
     return [];
   }
 }
 
-async function resolveCommandNames(pids: Set<number>): Promise<Map<number, string>> {
-  const map = new Map<number, string>();
+interface WindowsProcessInfo {
+  command: string;
+  commandLine: string | null;
+}
+
+/**
+ * `tasklist` only gives the image name (e.g. "node.exe"), useless to tell
+ * apart ten unrelated Node processes. WMI's CommandLine includes the full
+ * invocation (script path, args) — the closest thing Windows has to "where
+ * is this actually running from" without a real cwd API. One PowerShell
+ * call for every process, not per-pid: spawning powershell.exe repeatedly
+ * is slow enough to matter when the ports list has more than a couple of
+ * external entries.
+ */
+async function resolveWindowsProcessInfo(pids: Set<number>): Promise<Map<number, WindowsProcessInfo>> {
+  const map = new Map<number, WindowsProcessInfo>();
   if (pids.size === 0) return map;
   try {
-    const { stdout } = await execFileAsync("tasklist", ["/FO", "CSV", "/NH"]);
-    for (const line of stdout.split("\n")) {
-      const cells = line.split('","').map((cell) => cell.replace(/^"|"\r?$/g, ""));
-      const name = cells[0];
-      const pid = Number(cells[1]);
-      if (name && pids.has(pid)) map.set(pid, name);
+    const { stdout } = await execFileAsync("powershell.exe", [
+      "-NoProfile",
+      "-NonInteractive",
+      "-Command",
+      "Get-CimInstance Win32_Process | Select-Object ProcessId, Name, CommandLine | ConvertTo-Json -Compress",
+    ]);
+    const parsed = JSON.parse(stdout) as
+      | { ProcessId: number; Name: string; CommandLine: string | null }
+      | Array<{ ProcessId: number; Name: string; CommandLine: string | null }>;
+    for (const row of Array.isArray(parsed) ? parsed : [parsed]) {
+      if (pids.has(row.ProcessId)) {
+        map.set(row.ProcessId, { command: row.Name, commandLine: row.CommandLine ?? null });
+      }
     }
   } catch {
     // Leave unresolved pids as "unknown" rather than failing the whole listing.
   }
   return map;
+}
+
+/**
+ * Best-effort working directory of an external process, for the "launched
+ * from" column in the system ports view. Only macOS/Linux expose this
+ * through standard tooling (`lsof -d cwd`); Windows has no equivalent
+ * without native process-memory introspection, so this always returns null
+ * there rather than guessing.
+ */
+export async function cwdOf(pid: number): Promise<string | null> {
+  if (process.platform === "win32") return null;
+  try {
+    const { stdout } = await execFileAsync("lsof", ["-a", "-d", "cwd", "-p", String(pid), "-Fn"]);
+    for (const line of stdout.split("\n")) {
+      if (line[0] === "n") return line.slice(1);
+    }
+    return null;
+  } catch {
+    return null;
+  }
 }
 
 /** Stops a process this app does not itself supervise (an external port occupant). */

@@ -1,10 +1,11 @@
 import http from "node:http";
+import path from "node:path";
 import type { ServerConfig } from "@porlocal/core";
 import { loadConfig, saveConfig } from "../core/config-store.js";
 import { generateId } from "../core/ids.js";
 import { tailLogs } from "../core/logs.js";
 import { resolveProject, resolveServer } from "../core/lookup.js";
-import { killProcess, listListeningPorts, occupantOf, waitForPortFree } from "../core/ports.js";
+import { cwdOf, killProcess, listListeningPorts, occupantOf, waitForPortFree } from "../core/ports.js";
 import { Supervisor } from "./supervisor.js";
 
 /**
@@ -209,10 +210,12 @@ function createServer(): http.Server {
 
       if (req.method === "GET" && url.pathname === "/ports") {
         const config = loadConfig();
-        const configuredByPort = new Map<number, { project: string; server: string }>();
+        const configuredByPort = new Map<number, { project: string; server: string; directory: string }>();
         for (const project of config.projects) {
           for (const server of project.servers) {
-            if (server.port !== null) configuredByPort.set(server.port, { project: project.name, server: server.name });
+            if (server.port === null) continue;
+            const directory = server.directory ? path.resolve(project.root, server.directory) : project.root;
+            configuredByPort.set(server.port, { project: project.name, server: server.name, directory });
           }
         }
         const listeners = await listListeningPorts();
@@ -226,8 +229,13 @@ function createServer(): http.Server {
           // Only trust "managed" when this exact pid is the one the supervisor
           // actually spawned — a configured port squatted by an unrelated
           // process must still show up as external and killable.
-          const managedBy = configured && supervisor.isManagedPid(listener.pid) ? configured : null;
-          data.push({ ...listener, managedBy });
+          const isManaged = configured && supervisor.isManagedPid(listener.pid);
+          const managedBy = isManaged ? { project: configured.project, server: configured.server } : null;
+          // Managed directories come straight from config (always accurate);
+          // external ones are a best-effort OS lookup (null on Windows).
+          const directory = isManaged ? configured.directory : await cwdOf(listener.pid);
+          const commandLine = isManaged ? null : listener.commandLine;
+          data.push({ ...listener, managedBy, directory, commandLine });
         }
         sendJson(res, 200, { ok: true, data });
         return;

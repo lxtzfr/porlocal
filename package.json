@@ -8,6 +8,7 @@
   "scripts": {
     "build": "npm run build --workspace=packages/core && npm run build --workspace=apps/porlocal",
     "typecheck": "npm run typecheck --workspace=packages/core && npm run typecheck --workspace=apps/porlocal && npm exec --workspace=apps/dashboard -- tsc --noEmit",
-    "dashboard:dev": "npm run dev --workspace=apps/dashboard"
+    "dashboard:dev": "npm run dev --workspace=apps/dashboard",
+    "daemon:dev": "npm run daemon:dev --workspace=apps/porlocal"
   }
 }
