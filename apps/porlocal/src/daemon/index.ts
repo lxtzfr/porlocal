@@ -281,8 +281,13 @@ function createServer(): http.Server {
   });
 }
 
-export function startDaemon(): void {
+export async function startDaemon(): Promise<void> {
   const config = loadConfig();
+  // Adopt whatever configured servers are already running (orphaned by a
+  // previous daemon crash/restart) before accepting requests, so the first
+  // /status a client sees is accurate instead of defaulting everything to
+  // "stopped".
+  await supervisor.reconcile();
   const server = createServer();
   server.listen(config.apiPort, "127.0.0.1", () => {
     console.log(`porlocal daemon listening on 127.0.0.1:${config.apiPort}`);

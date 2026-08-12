@@ -6,22 +6,27 @@ import { loadConfig } from "../core/config-store.js";
 import { checkServerHealth } from "../core/health.js";
 import { appendLog } from "../core/logs.js";
 import { resolveServer } from "../core/lookup.js";
-import { occupantOf } from "../core/ports.js";
+import { occupantOf, killProcess } from "../core/ports.js";
 
 const HEALTH_INTERVAL_MS = 2000;
 const RESTART_DELAY_MS = 1000;
 
 interface ManagedProcess {
-  child: ChildProcess;
+  /** null for a server adopted at daemon startup — we never spawned it, so there's no handle to hold. */
+  child: ChildProcess | null;
+  /** Always known: child.pid for spawned processes, the OS-reported occupant pid for adopted ones. */
+  pid: number;
   manualStop: boolean;
   healthTimer: ReturnType<typeof setInterval> | null;
   /**
    * `spawn(cmd, { shell: true })` makes `child.pid` the shell's pid (cmd.exe
    * / sh), not the real process listening on the port — that's a grandchild.
    * We resolve it via the OS port lookup so kill-port/take-over can
-   * recognize a managed server's real pid and refuse to touch it.
+   * recognize a managed server's real pid and refuse to touch it. For
+   * adopted entries this is just `pid` itself (we found it via the port).
    */
   listenPid: number | null;
+  adopted: boolean;
 }
 
 export interface LogEvent {
@@ -43,10 +48,10 @@ export class Supervisor extends EventEmitter<SupervisorEvents> {
     return [...this.states.values()];
   }
 
-  /** True if this pid belongs to a process we spawned — kill-port must never touch these, use stop/restart instead. */
+  /** True if this pid belongs to a process we spawned or adopted — kill-port must never touch these, use stop/restart instead. */
   isManagedPid(pid: number): boolean {
     for (const managed of this.processes.values()) {
-      if (managed.child.pid === pid || managed.listenPid === pid) return true;
+      if (managed.pid === pid || managed.listenPid === pid) return true;
     }
     return false;
   }
@@ -61,6 +66,46 @@ export class Supervisor extends EventEmitter<SupervisorEvents> {
         restartCount: 0,
       }
     );
+  }
+
+  /**
+   * Runs once when the daemon starts. A previous daemon crash or restart
+   * leaves its spawned processes running as orphans (Node doesn't kill
+   * children when the parent dies), so without this every configured server
+   * would incorrectly show "stopped" — and worse, the ports view would flag
+   * its own orphan as an unrecognized external process. Adopts anything
+   * already answering on a configured port instead of demanding a
+   * kill-and-restart via take-over.
+   */
+  async reconcile(): Promise<void> {
+    const config = loadConfig();
+    for (const project of config.projects) {
+      for (const server of project.servers) {
+        if (server.port === null || this.processes.has(server.id)) continue;
+        const occupant = await occupantOf(server.port);
+        if (!occupant) continue;
+        this.adopt(server, occupant.pid);
+      }
+    }
+  }
+
+  private adopt(server: ServerConfig, pid: number): void {
+    const managed: ManagedProcess = {
+      child: null,
+      pid,
+      manualStop: false,
+      healthTimer: null,
+      listenPid: pid,
+      adopted: true,
+    };
+    this.processes.set(server.id, managed);
+    this.setState(server.id, { status: "starting", pid, startedAt: new Date().toISOString() });
+
+    const line = `[porlocal] adopted already-running process (pid ${pid}) found on daemon startup`;
+    appendLog(server.id, line);
+    this.emit("log", { serverId: server.id, line });
+
+    this.startHealthLoop(server, managed);
   }
 
   start(serverId: string): void {
@@ -78,7 +123,15 @@ export class Supervisor extends EventEmitter<SupervisorEvents> {
       return;
     }
     managed.manualStop = true;
-    this.killChild(managed.child);
+    // force: false — graceful SIGTERM on macOS/Linux (unchanged from before);
+    // killProcess already forces unconditionally on Windows since taskkill
+    // without /F fails on most child processes there anyway.
+    killProcess(managed.pid, false).catch(() => {
+      // Best-effort: if the pid is already gone, the health/exit path below still cleans up.
+    });
+    if (managed.child) return; // its own 'exit' handler drives cleanup
+    // Adopted processes have no ChildProcess to emit 'exit' — the health
+    // loop below notices the port going quiet and finishes the cleanup.
   }
 
   async restart(serverId: string): Promise<void> {
@@ -103,15 +156,6 @@ export class Supervisor extends EventEmitter<SupervisorEvents> {
     });
   }
 
-  private killChild(child: ChildProcess): void {
-    if (!child.pid) return;
-    if (process.platform === "win32") {
-      spawn("taskkill", ["/pid", String(child.pid), "/t", "/f"]);
-    } else {
-      child.kill("SIGTERM");
-    }
-  }
-
   private findServer(serverId: string): { project: ProjectConfig; server: ServerConfig } | null {
     return resolveServer(loadConfig(), serverId);
   }
@@ -122,7 +166,14 @@ export class Supervisor extends EventEmitter<SupervisorEvents> {
     if (server.port !== null) env.PORT = String(server.port);
 
     const child = spawn(server.command, { shell: true, cwd, env });
-    const managed: ManagedProcess = { child, manualStop: false, healthTimer: null, listenPid: null };
+    const managed: ManagedProcess = {
+      child,
+      pid: child.pid ?? -1,
+      manualStop: false,
+      healthTimer: null,
+      listenPid: null,
+      adopted: false,
+    };
     this.processes.set(server.id, managed);
     this.setState(server.id, { status: "starting", pid: child.pid ?? null, startedAt: new Date().toISOString() });
 
@@ -142,6 +193,11 @@ export class Supervisor extends EventEmitter<SupervisorEvents> {
       if (server.port !== null) {
         occupantOf(server.port).then((occupant) => {
           managed.listenPid = occupant?.pid ?? null;
+          // An adopted process has no ChildProcess to fire 'exit' — losing
+          // its port is the only signal we have that it's gone.
+          if (managed.adopted && !occupant && this.processes.get(server.id) === managed) {
+            this.handleExit(server, managed, null);
+          }
         });
       }
       checkServerHealth(server).then((healthy) => {
@@ -154,7 +210,9 @@ export class Supervisor extends EventEmitter<SupervisorEvents> {
   private handleExit(server: ServerConfig, managed: ManagedProcess, code: number | null): void {
     if (managed.healthTimer) clearInterval(managed.healthTimer);
     this.processes.delete(server.id);
-    const exitLine = `[porlocal] process exited with code ${code}`;
+    const exitLine = managed.adopted
+      ? "[porlocal] adopted process is no longer listening on its port"
+      : `[porlocal] process exited with code ${code}`;
     appendLog(server.id, exitLine);
     this.emit("log", { serverId: server.id, line: exitLine });
 
