@@ -1,11 +1,15 @@
 #!/usr/bin/env node
+import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import readline from "node:readline/promises";
+import { fileURLToPath } from "node:url";
 import { Command } from "commander";
 import type { ProjectConfig, ServerConfig, ServerState } from "@porlocal/core";
 import { loadConfig, saveConfig } from "../core/config-store.js";
 import { detectSuggestions } from "../core/command-detector.js";
 import { generateId } from "../core/ids.js";
+import { upsertAgentRule } from "../core/agent-rule.js";
 import { occupantOf, isPortFree } from "../core/ports.js";
 import { daemonRequest, peekDaemon } from "./daemon-client.js";
 import { ensureDashboard, openBrowser } from "./dashboard-client.js";
@@ -281,6 +285,25 @@ program
 
     const state = await daemonRequest<ServerState>("POST", "/take-over", { server: ref });
     console.log(`${ref}: ${state.status} (pid ${state.pid ?? "n/a"})`);
+  });
+
+program
+  .command("init")
+  .description("Set up AGENTS.md rules and install the agent skill so AI coding agents use porlocal")
+  .option("--global", "update ~/.agents/AGENTS.md instead of the project's ./AGENTS.md")
+  .action((options: { global?: boolean }) => {
+    const targetPath = options.global
+      ? path.join(os.homedir(), ".agents", "AGENTS.md")
+      : path.join(process.cwd(), "AGENTS.md");
+    const { created, updated } = upsertAgentRule(targetPath);
+    console.log(created ? `Created ${targetPath}` : updated ? `Updated ${targetPath}` : `${targetPath} already up to date`);
+
+    const here = path.dirname(fileURLToPath(import.meta.url));
+    const bundledSkill = path.join(here, "..", "..", "skills", "porlocal", "SKILL.md");
+    const skillDir = path.join(os.homedir(), ".agents", "skills", "porlocal");
+    fs.mkdirSync(skillDir, { recursive: true });
+    fs.copyFileSync(bundledSkill, path.join(skillDir, "SKILL.md"));
+    console.log(`Installed skill at ${path.join(skillDir, "SKILL.md")}`);
   });
 
 program
