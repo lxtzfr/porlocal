@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { spawn } from 'node:child_process'
 import { autostartStatus, disableAutostart, enableAutostart } from './autostart.js'
-import { api, ApiError, daemonUp, ensureDaemon, stopDaemon } from './client.js'
+import { api, ApiError, daemonUp, ensureDaemon, stopDaemon, streamEvents } from './client.js'
 import { DAEMON_LOG, DAEMON_URL } from './paths.js'
 import { readMsysParents } from './procs.js'
 import { resolveWorkspace, workspaceLabel } from './workspace.js'
@@ -72,15 +72,12 @@ function describe(p: Managed): string {
 }
 
 async function follow(id: string, lines: number): Promise<void> {
-  let shown = ''
-  for (;;) {
-    const { text } = await api<{ text: string }>(`/api/logs?id=${encodeURIComponent(id)}&tail=${lines}`)
-    if (text !== shown) {
-      process.stdout.write(text.startsWith(shown) ? text.slice(shown.length) : `\n${text}`)
-      shown = text
-    }
-    await new Promise((r) => setTimeout(r, 1000))
-  }
+  let first = true
+  await streamEvents(`/api/logs/stream?id=${encodeURIComponent(id)}&tail=${lines}`, (event, text: string) => {
+    // A reset after the first one: the log was rotated by a restart.
+    process.stdout.write(event === 'reset' && !first ? `\n${text}` : text)
+    first = false
+  })
 }
 
 async function run(args: Args, service?: string): Promise<Managed> {

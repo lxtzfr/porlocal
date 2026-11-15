@@ -1,4 +1,3 @@
-import { existsSync, readFileSync } from 'node:fs'
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http'
 import type { Logger } from '../log.js'
 import { DAEMON_PORT } from '../paths.js'
@@ -7,6 +6,8 @@ import { isAlive, killTree, processTable } from '../procs.js'
 import { refTarget, resolveWorkspace } from '../workspace.js'
 import type { StateResponse } from '../api.js'
 import type { Adb } from './adb.js'
+import { eventStream, Feed } from './events.js'
+import { followLog, tailText } from './logTail.js'
 import { dashboardFile } from './static.js'
 import { Supervisor, UserError, type RunRequest } from './supervisor.js'
 import { findZombies } from './zombies.js'
@@ -28,23 +29,37 @@ function readBody(req: IncomingMessage): Promise<any> {
   })
 }
 
-function tail(file: string, lines: number): string {
-  if (!existsSync(file)) return ''
-  const all = readFileSync(file, 'utf-8').split(/\r?\n/)
-  return all.slice(-lines).join('\n')
-}
-
 export function startServer(sup: Supervisor, adb: Adb, log: Logger, shutdown: () => void) {
   const zombies = () => findZombies(sup.state, processTable(), listeningPorts(), [process.pid])
+  const state = (): StateResponse => ({
+    processes: sup.state.processes.map((p) => ({ ...p, ownerAlive: p.owner ? isAlive(p.owner.pid) : null })),
+    leases: sup.state.leases,
+    bindings: sup.state.bindings.map((b) => ({ ...b, hostPort: sup.portOf(b.workspace, b.service) })),
+    devices: [...adb.devices],
+    adb: adb.available,
+  })
+  // Zombies are slower: the whole process table is read.
+  const feeds = { state: new Feed('state', state, 1000, log), zombies: new Feed('zombies', zombies, 5000, log) }
+  const findProcess = (url: URL) => {
+    const p = sup.find(url.searchParams.get('id') ?? '')
+    if (!p) throw new UserError('unknown process')
+    return p
+  }
+  const streams: Record<string, (req: IncomingMessage, res: ServerResponse, url: URL) => void> = {
+    '/api/events': (_, res) => {
+      const s = eventStream(res)
+      feeds.state.add(s)
+      feeds.zombies.add(s)
+    },
+    '/api/logs/stream': (_, res, url) => {
+      const p = findProcess(url)
+      const s = eventStream(res)
+      s.onClose(followLog(p.logFile, Number(url.searchParams.get('tail') ?? 200), (chunk) => s.send(chunk.kind, JSON.stringify(chunk.text))))
+    },
+  }
   const routes: Record<string, (body: any, url: URL) => Promise<unknown> | unknown> = {
     'GET /api/health': () => ({ ok: true, pid: process.pid, version: VERSION }),
-    'GET /api/state': (): StateResponse => ({
-      processes: sup.state.processes.map((p) => ({ ...p, ownerAlive: p.owner ? isAlive(p.owner.pid) : null })),
-      leases: sup.state.leases,
-      bindings: sup.state.bindings.map((b) => ({ ...b, hostPort: sup.portOf(b.workspace, b.service) })),
-      devices: [...adb.devices],
-      adb: adb.available,
-    }),
+    'GET /api/state': state,
     'POST /api/run': (body: RunRequest) => sup.run(body),
     'POST /api/stop': (body) => sup.stop(body.id),
     'POST /api/restart': (body) => sup.restart(body.id),
@@ -58,9 +73,8 @@ export function startServer(sup: Supervisor, adb: Adb, log: Logger, shutdown: ()
     },
     'POST /api/device/unbind': (body) => adb.unbind(Number(body.devicePort), body.device ?? 'all'),
     'GET /api/logs': (_, url) => {
-      const p = sup.find(url.searchParams.get('id') ?? '')
-      if (!p) throw new UserError('unknown process')
-      return { id: p.id, text: tail(p.logFile, Number(url.searchParams.get('tail') ?? 200)) }
+      const p = findProcess(url)
+      return { id: p.id, text: tailText(p.logFile, Number(url.searchParams.get('tail') ?? 200)) }
     },
     'GET /api/zombies': () => zombies(),
     // Only a PID listed as a zombie right now: never a way to kill any process by number.
@@ -91,6 +105,15 @@ export function startServer(sup: Supervisor, adb: Adb, log: Logger, shutdown: ()
       res.writeHead(file.status, file.headers).end(file.body)
       return
     }
+    const stream = req.method === 'GET' ? streams[url.pathname] : undefined
+    if (stream) {
+      try {
+        stream(req, res, url)
+      } catch (err) {
+        res.writeHead(err instanceof UserError ? 400 : 500, { 'content-type': 'application/json' }).end(JSON.stringify({ error: (err as Error).message }))
+      }
+      return
+    }
     const route = routes[`${req.method} ${url.pathname}`]
     if (!route) {
       res.writeHead(404, { 'content-type': 'application/json' }).end(JSON.stringify({ error: 'not found' }))
@@ -103,6 +126,8 @@ export function startServer(sup: Supervisor, adb: Adb, log: Logger, shutdown: ()
     try {
       const body = req.method === 'POST' ? await readBody(req) : {}
       const result = await route(body, url)
+      // An action changed something: listeners get it now, not at the next tick.
+      if (req.method === 'POST') for (const f of Object.values(feeds)) f.poke()
       res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify(result ?? null))
     } catch (err) {
       const user = err instanceof UserError

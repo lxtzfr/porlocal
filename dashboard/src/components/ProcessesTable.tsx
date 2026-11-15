@@ -2,7 +2,7 @@ import { ActionIcon, Badge, Group, Table, Text, Tooltip } from '@mantine/core'
 import { IconFileText, IconPin, IconPlayerPlay, IconPlayerStop, IconRefresh, IconTrash } from '@tabler/icons-react'
 import type { ReactNode } from 'react'
 import type { StateResponse } from '../../../src/api'
-import { useProcessAction, type ProcessAction } from '../api'
+import { useNow, useProcessAction, type ProcessAction } from '../api'
 import { ago, isRunning } from '../format'
 import { Cmd, Path, PortLink } from './cells'
 import { Empty } from './Section'
@@ -11,9 +11,9 @@ type Proc = StateResponse['processes'][number]
 
 const STATUS_COLOR: Record<Proc['status'], string> = { ready: 'teal', starting: 'yellow', exited: 'gray', stopped: 'gray' }
 
-function Owner({ p }: { p: Proc }) {
+function Owner({ p, now }: { p: Proc; now: number }) {
   if (!p.owner) return <Text size="sm" c="dimmed">none</Text>
-  const left = p.ownerLostAt ? Math.max(0, Math.round((p.graceMs - (Date.now() - p.ownerLostAt)) / 1000)) : null
+  const left = p.ownerLostAt ? Math.max(0, Math.round((p.graceMs - (now - p.ownerLostAt)) / 1000)) : null
   return (
     <Group gap={6} wrap="nowrap">
       <Text size="sm">{p.owner.name}</Text>
@@ -35,6 +35,7 @@ function Action({ label, icon, color, onClick, loading }: { label: string; icon:
 
 export function ProcessesTable({ processes, onLogs }: { processes: Proc[]; onLogs: (id: string) => void }) {
   const action = useProcessAction()
+  const now = useNow()
   if (!processes.length) return <Empty>Nothing launched yet: <Cmd>porlocal run &lt;service&gt;</Cmd></Empty>
   const run = (a: ProcessAction, id: string) => () => action.mutate({ action: a, id })
   const busy = (a: ProcessAction, id: string) => action.isPending && action.variables?.action === a && action.variables.id === id
@@ -62,9 +63,9 @@ export function ProcessesTable({ processes, onLogs }: { processes: Proc[]; onLog
                     {p.status === 'stopped' && p.stopReason && <Text size="xs" c="dimmed">{p.stopReason}</Text>}
                   </Group>
                 </Table.Td>
-                <Table.Td><Owner p={p} /></Table.Td>
+                <Table.Td><Owner p={p} now={now} /></Table.Td>
                 <Table.Td><Text size="sm">{p.pid}</Text></Table.Td>
-                <Table.Td><Text size="sm">{running ? ago(p.startedAt) : ''}</Text></Table.Td>
+                <Table.Td><Text size="sm">{running ? ago(p.startedAt, now) : ''}</Text></Table.Td>
                 <Table.Td><Path value={p.workspace} /></Table.Td>
                 <Table.Td>
                   <Group gap={2} wrap="nowrap" justify="flex-end">
