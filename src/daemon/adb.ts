@@ -3,15 +3,15 @@
 // restart: `adb track-devices` re-applies them on each (re)connection, and after a host port change.
 
 import { spawn, spawnSync, type ChildProcess } from 'node:child_process'
+import { findAdb } from '../adbPath.js'
 import type { Logger } from '../log.js'
 import type { Binding, State } from './state.js'
-
-const ADB = process.env.ADB ?? 'adb'
 
 export class Adb {
   readonly devices = new Set<string>()
   private tracker: ChildProcess | null = null
   available = true
+  private adb = findAdb()
 
   constructor(
     private readonly state: State,
@@ -19,20 +19,27 @@ export class Adb {
     private readonly save: () => void,
     private readonly log: Logger,
   ) {
+    this.log.info(`adb: ${this.adb}`)
     this.track()
   }
 
   private run(args: string[]): { ok: boolean; out: string } {
-    const r = spawnSync(ADB, args, { encoding: 'utf-8', windowsHide: true })
+    const r = spawnSync(this.adb, args, { encoding: 'utf-8', windowsHide: true })
     return { ok: r.status === 0, out: `${r.stdout ?? ''}${r.stderr ?? ''}`.trim() }
   }
 
   private track(): void {
-    const child = spawn(ADB, ['track-devices'], { windowsHide: true, stdio: ['ignore', 'pipe', 'ignore'] })
+    // Re-resolved on each retry: adb (or a Unity editor) may be installed while the daemon runs.
+    if (!this.available) {
+      const adb = findAdb()
+      if (adb !== this.adb) this.log.info(`adb: ${adb}`)
+      this.adb = adb
+    }
+    const child = spawn(this.adb, ['track-devices'], { windowsHide: true, stdio: ['ignore', 'pipe', 'ignore'] })
     this.tracker = child
     let buffer = ''
     child.on('error', () => {
-      if (this.available) this.log.warn(`adb not found (${ADB}): device bindings wait for it (set ADB to its path)`)
+      if (this.available) this.log.warn(`adb not found (${this.adb}): device bindings wait for it (set ADB to its path)`)
       this.available = false
       // A failed spawn emits no 'exit': retry from here.
       if (!child.pid) setTimeout(() => this.track(), 30_000).unref()
