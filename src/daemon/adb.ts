@@ -5,7 +5,7 @@
 import { spawn, spawnSync, type ChildProcess } from 'node:child_process'
 import { findAdb } from '../adbPath.js'
 import type { Logger } from '../log.js'
-import type { Binding, State } from './state.js'
+import type { Binding, State } from '../api.js'
 
 export class Adb {
   readonly devices = new Set<string>()

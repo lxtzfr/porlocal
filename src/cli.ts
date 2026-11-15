@@ -5,8 +5,7 @@ import { api, ApiError, daemonUp, ensureDaemon } from './client.js'
 import { DAEMON_LOG, DAEMON_URL } from './paths.js'
 import { readMsysParents } from './procs.js'
 import { resolveWorkspace, workspaceLabel } from './workspace.js'
-import type { Lease, Managed } from './daemon/state.js'
-import type { Zombie } from './daemon/zombies.js'
+import type { Lease, Managed, StateResponse, Zombie } from './api.js'
 
 const USAGE = `porlocal: leases ports, supervises dev servers, maps device ports (optional: projects run without it)
 
@@ -141,7 +140,7 @@ async function main(): Promise<void> {
     }
     case 'ls':
     case 'ps': {
-      const state = await api<{ processes: Managed[]; leases: Lease[] }>('/api/state')
+      const state = await api<StateResponse>('/api/state')
       if (args.flags.json) return console.log(JSON.stringify(state, null, 2))
       if (!state.processes.length) return console.log('nothing launched yet')
       printTable([

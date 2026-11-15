@@ -5,8 +5,9 @@ import { DAEMON_PORT } from '../paths.js'
 import { listeningPorts } from '../ports.js'
 import { isAlive, killTree, processTable } from '../procs.js'
 import { refTarget, resolveWorkspace } from '../workspace.js'
+import type { StateResponse } from '../api.js'
 import type { Adb } from './adb.js'
-import { DASHBOARD_HTML } from './dashboard.js'
+import { dashboardFile } from './static.js'
 import { Supervisor, UserError, type RunRequest } from './supervisor.js'
 import { findZombies } from './zombies.js'
 
@@ -37,7 +38,7 @@ export function startServer(sup: Supervisor, adb: Adb, log: Logger, shutdown: ()
   const zombies = () => findZombies(sup.state, processTable(), listeningPorts(), [process.pid])
   const routes: Record<string, (body: any, url: URL) => Promise<unknown> | unknown> = {
     'GET /api/health': () => ({ ok: true, pid: process.pid, version: VERSION }),
-    'GET /api/state': () => ({
+    'GET /api/state': (): StateResponse => ({
       processes: sup.state.processes.map((p) => ({ ...p, ownerAlive: p.owner ? isAlive(p.owner.pid) : null })),
       leases: sup.state.leases,
       bindings: sup.state.bindings.map((b) => ({ ...b, hostPort: sup.portOf(b.workspace, b.service) })),
@@ -84,8 +85,9 @@ export function startServer(sup: Supervisor, adb: Adb, log: Logger, shutdown: ()
       return
     }
     const url = new URL(req.url ?? '/', `http://${req.headers.host}`)
-    if (req.method === 'GET' && url.pathname === '/') {
-      res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' }).end(DASHBOARD_HTML)
+    if (req.method === 'GET' && !url.pathname.startsWith('/api/')) {
+      const file = dashboardFile(url.pathname)
+      res.writeHead(file.status, file.headers).end(file.body)
       return
     }
     const route = routes[`${req.method} ${url.pathname}`]

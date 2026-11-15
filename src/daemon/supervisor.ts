@@ -7,7 +7,8 @@ import { DYNAMIC_RANGE, LOGS_DIR } from '../paths.js'
 import { isFree, portHolder, waitListening } from '../ports.js'
 import { detectOwner, isAlive, killTree, processTable } from '../procs.js'
 import { preferredPort, resolveWorkspace, siblingCheckouts, workspaceLabel, type Workspace } from '../workspace.js'
-import { loadState, saveState, type Lease, type Managed, type State } from './state.js'
+import type { Lease, Managed, State } from '../api.js'
+import { loadState, saveState } from './state.js'
 
 export interface RunRequest {
   cwd: string

@@ -1,18 +1,7 @@
 import { existsSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import type { ProcInfo } from '../procs.js'
-import type { State } from './state.js'
-
-export interface Zombie {
-  pid: number
-  name: string
-  cmd: string
-  ports: number[]
-  /** The checkout its command line (or an ancestor's) runs from. */
-  checkout: string
-  /** Its parent is gone: a terminal or a launcher closed under it. */
-  orphan: boolean
-}
+import type { State, Zombie } from '../api.js'
 
 // Apps that run from a checkout without being a dev server left behind (Unity's -projectPath, an IDE's folder).
 const APPS = /^(code|code - insiders|cursor|claude|unity|unity hub|idea64|webstorm64|rider64|devenv|explorer|windowsterminal)(\.exe)?$/i

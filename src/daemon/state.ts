@@ -3,57 +3,8 @@
 
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
 import { dirname } from 'node:path'
+import type { State } from '../api.js'
 import { STATE_FILE } from '../paths.js'
-
-export interface Lease {
-  workspace: string
-  service: string
-  port: number
-  /** The port `wt` would give it; differs when that one was taken. */
-  preferred?: number
-}
-
-export interface Binding {
-  workspace: string
-  service: string
-  devicePort: number
-  /** A device serial, or `all`. */
-  device: string
-}
-
-export interface Owner {
-  pid: number
-  name: string
-}
-
-export type Status = 'starting' | 'ready' | 'exited' | 'stopped'
-
-export interface Managed {
-  id: string
-  workspace: string
-  label: string
-  service: string
-  port: number
-  cmd: string
-  pid: number
-  owner: Owner | null
-  ownerLostAt?: number
-  graceMs: number
-  status: Status
-  exitCode?: number | null
-  stopReason?: string
-  startedAt: number
-  logFile: string
-  adopted?: boolean
-  /** What the run did beyond starting it (a port move, dependents restarted): in the API answer, never persisted. */
-  notes?: string[]
-}
-
-export interface State {
-  leases: Lease[]
-  bindings: Binding[]
-  processes: Managed[]
-}
 
 export function loadState(): State {
   if (!existsSync(STATE_FILE)) return { leases: [], bindings: [], processes: [] }
