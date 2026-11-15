@@ -6,13 +6,14 @@ import { useNow } from '../api'
 import { HIGHLIGHT_BG, useHighlighter, useIsHighlighted } from '../highlight'
 import { ago, isRunning } from '../format'
 import { Path, PortLink } from './cells'
+import { CheckoutActions } from './CheckoutActions'
 import { KillButton } from './KillButton'
 import { Owner, ProcessActions, STATUS_COLOR } from './ProcessActions'
 
 const LINK: Record<LinkStatus, { color: string; tip: string }> = {
   ok: { color: 'teal', tip: 'Its target listens, .env.local points at it' },
   down: { color: 'gray', tip: 'Nothing listens on its target' },
-  stale: { color: 'red', tip: '.env.local points elsewhere: porlocal run (or pnpm wt env) rewrites it' },
+  stale: { color: 'red', tip: '.env.local points elsewhere: the rewrite button of its checkout fixes it' },
   unresolved: { color: 'yellow', tip: 'No port known for its target: not declared, never leased' },
 }
 const COLUMNS = ['Service', 'Port', 'Status', 'Owner', 'Up', '']
@@ -48,7 +49,7 @@ function LinkBadge({ l, ctx }: { l: CheckoutLink; ctx: Ctx }) {
   const outside = groupOf(ctx.all, l.workspace)
   const leaves = outside && outside.id !== ctx.group.group.id
   const hover = useHighlighter({ workspace: l.workspace, service: l.service })
-  const tip = l.status === 'stale' ? `.env.local has ${l.written ?? 'nothing'}, should be ${l.expected}: porlocal run (or pnpm wt env) rewrites it` : LINK[l.status].tip
+  const tip = l.status === 'stale' ? `.env.local has ${l.written ?? 'nothing'}, should be ${l.expected}: the rewrite button of its checkout fixes it` : LINK[l.status].tip
   return (
     <Tooltip label={leaves ? `${tip}. Points out of this group, at ${outside.label}: wanted, or a missing wt link?` : tip} multiline maw={420}>
       <Badge {...hover} style={{ cursor: 'default' }} color={l.status === 'ok' && leaves ? 'yellow' : LINK[l.status].color} variant="light" leftSection={<IconArrowRight size={12} />} tt="none">
@@ -96,6 +97,7 @@ function CheckoutHeader({ v, ctx, title }: { v: CheckoutView; ctx: Ctx; title?: 
         </Group>
         <Group gap={4} wrap="nowrap">
           <Path value={c.path} max={360} />
+          <CheckoutActions c={c} />
           <Tooltip label="Open in VS Code">
             <ActionIcon component="a" href={`vscode://file/${c.path}`} variant="subtle" size="sm" aria-label="Open in VS Code">
               <IconBrandVscode size={16} stroke={1.6} />

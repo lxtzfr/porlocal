@@ -1,91 +1,36 @@
-// A workspace = one checkout: a repo's main checkout (n = 1) or one of its my-stack `wt` slots
-// (`<parent>.wt/<repo>-<n>`). Its services and env templates come from package.json `myStack` (the contract shared
-// with my-stack's `wt`, see envLocal.ts); a repo without them still works with `porlocal run <name> -- <cmd>`.
+// A workspace = one checkout as wt (`@lxtzfr/wt`) sees it: a repo's main checkout (n = 1) or one of its slots, with
+// its declared services and env templates (package.json `myStack`). A repo without them still works with
+// `porlocal run <name> -- <cmd>`.
 
-import { execFileSync } from 'node:child_process'
-import { existsSync, readdirSync, readFileSync, realpathSync } from 'node:fs'
-import { basename, dirname, join, resolve } from 'node:path'
+import { existsSync, readdirSync } from 'node:fs'
+import { dirname, join } from 'node:path'
+import { declaredPort, myStackConfig, normalize, refTarget as wtRefTarget, resolveCheckout, slotPort, slotsDir, type Checkout, type ServiceDecl } from '@lxtzfr/wt'
 
-export interface ServiceDecl {
-  port?: number
-  run?: string
-}
+export { normalize, slotsDir, slotPort }
 
-export interface Workspace {
-  path: string
-  main: string
-  repo: string
-  /** Slot number, 1 = main checkout; null for a checkout outside the slot layout (its ports are leased dynamically). */
-  n: number | null
+export interface Workspace extends Checkout {
   services: Record<string, ServiceDecl>
   env: Record<string, string>
-  /** `wt link`: repo -> slot n of the sibling repo this checkout talks to (absent = its main checkout). */
-  links: Record<string, number>
 }
-
-function git(cwd: string, ...args: string[]): string | null {
-  try {
-    return execFileSync('git', ['-C', cwd, ...args], { encoding: 'utf-8', stdio: ['ignore', 'pipe', 'ignore'], windowsHide: true }).trim()
-  } catch {
-    return null
-  }
-}
-
-const readJson = (path: string): any => {
-  try {
-    return JSON.parse(readFileSync(path, 'utf-8'))
-  } catch {
-    return null
-  }
-}
-
-// One spelling per folder: git prints long paths, a cwd can be a Windows 8.3 short one (C:/Users/ALEXAN~1).
-export function normalize(path: string): string {
-  let full = resolve(path)
-  try {
-    full = realpathSync.native(full)
-  } catch {}
-  return full.replace(/\\/g, '/').replace(/\/$/, '')
-}
-
-export const slotsDir = (main: string) => `${dirname(main)}.wt`
-export const slotPath = (main: string, n: number) => (n === 1 ? main : normalize(join(slotsDir(main), `${basename(main)}-${n}`)))
-export const slotPort = (port: number, n: number) => port + 10 * (n - 1)
 
 export function resolveWorkspace(cwd: string): Workspace {
-  const top = git(cwd, 'rev-parse', '--show-toplevel')
-  const path = normalize(top ?? cwd)
-  const common = git(path, 'rev-parse', '--path-format=absolute', '--git-common-dir')
-  const main = common ? normalize(dirname(common)) : path
-  const repo = basename(main)
-  let n: number | null = path === main ? 1 : null
-  if (n === null && normalize(dirname(path)) === normalize(slotsDir(main))) {
-    const match = basename(path).match(new RegExp(`^${repo.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}-(\\d+)$`))
-    if (match) n = Number(match[1])
-  }
-  const myStack = readJson(join(path, 'package.json'))?.myStack ?? {}
-  const gitDir = git(path, 'rev-parse', '--path-format=absolute', '--git-dir')
-  const links = (gitDir && readJson(join(gitDir, 'my-stack-wt.json'))?.links) ?? {}
-  return { path, main, repo, n, services: myStack.services ?? {}, env: myStack.env ?? {}, links }
+  const checkout = resolveCheckout(cwd)
+  const config = myStackConfig(checkout.path)
+  return { ...checkout, services: config.services ?? {}, env: config.env ?? {} }
 }
 
-export const workspaceLabel = (ws: Pick<Workspace, 'repo' | 'n' | 'path'>) =>
-  ws.n === 1 ? ws.repo : ws.n ? `${ws.repo}-${ws.n}` : `${ws.repo}@${basename(ws.path)}`
+export const workspaceLabel = (ws: Pick<Workspace, 'name'>) => ws.name
 
 /** The checkout a `<repo>/<service>` (or same-repo `<service>`) reference points at from `ws`. */
 export function refTarget(ws: Workspace, ref: string): { workspace: string; service: string } {
-  if (!ref.includes('/')) return { workspace: ws.path, service: ref }
-  const [repo, service] = ref.split('/') as [string, string]
-  if (repo === ws.repo) return { workspace: ws.path, service }
-  const main = normalize(join(dirname(ws.main), repo))
-  return { workspace: slotPath(main, ws.links[repo] ?? 1), service }
+  const target = wtRefTarget(ws, ref)
+  return { workspace: target.path, service: target.service }
 }
 
-/** The port `wt` gives this service in this checkout (declared main port + 10 per slot), if declared. */
+/** The port wt gives this service in this checkout (declared main port + 10 per slot), if declared. */
 export function preferredPort(ws: Workspace, service: string): number | undefined {
-  const port = ws.services[service]?.port ?? readJson(join(ws.main, 'package.json'))?.myStack?.services?.[service]?.port
-  if (!port || ws.n === null) return undefined
-  return slotPort(Number(port), ws.n)
+  const port = ws.n === null ? undefined : declaredPort(ws.path, ws.main, service)
+  return port && ws.n ? slotPort(port, ws.n) : undefined
 }
 
 /** Every checkout next to `ws`'s repo (sibling main checkouts and their slots): where dependents can live. */

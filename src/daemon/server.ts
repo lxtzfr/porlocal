@@ -3,7 +3,7 @@ import type { Logger } from '../log.js'
 import { DAEMON_PORT } from '../paths.js'
 import { listeningPorts } from '../ports.js'
 import { isAlive, killTree, processTable } from '../procs.js'
-import { refTarget, resolveWorkspace } from '../workspace.js'
+import { normalize, refTarget, resolveWorkspace } from '../workspace.js'
 import type { MachineResponse, StateResponse } from '../api.js'
 import type { Adb } from './adb.js'
 import { eventStream, Feed } from './events.js'
@@ -14,6 +14,7 @@ import { findZombies } from './zombies.js'
 import { projectPorts } from './projectPorts.js'
 import { cachedWorkspaces, checkouts } from './checkouts.js'
 import { projectGroups } from './projectGroups.js'
+import { runWt } from './wtActions.js'
 
 export const VERSION = '0.1.0'
 
@@ -54,6 +55,11 @@ export function startServer(sup: Supervisor, adb: Adb, log: Logger, shutdown: ()
   })
   // The machine is slower: the whole process table is read.
   const feeds = { state: new Feed('state', state, 1000, log), machine: new Feed('machine', machine, 5000, log) }
+  const knownCheckout = (path: unknown) => {
+    const target = typeof path === 'string' ? normalize(path) : ''
+    if (!machine().checkouts.some((c) => c.path === target)) throw new UserError(`${String(path)} is no checkout porlocal shows`)
+    return resolveWorkspace(target)
+  }
   const findProcess = (url: URL) => {
     const p = sup.find(url.searchParams.get('id') ?? '')
     if (!p) throw new UserError('unknown process')
@@ -101,6 +107,14 @@ export function startServer(sup: Supervisor, adb: Adb, log: Logger, shutdown: ()
       log.info(`killed zombie PID ${z.pid} (${z.name}, ${z.checkout}${z.ports.length ? `, ports ${z.ports.join(' ')}` : ''})`)
       return z
     },
+    // A checkout the dashboard shows, never any folder: these write files and move branches.
+    'POST /api/checkout/env': (body) => {
+      const ws = knownCheckout(body.path)
+      const values = sup.writeEnv(ws)
+      log.info(`${ws.name}: .env.local rewritten on request`)
+      return { keys: Object.keys(values) }
+    },
+    'POST /api/checkout/wt': (body) => runWt(knownCheckout(body.path), body.command, log),
     // Exits just after answering: the caller waits for this PID to be gone (stopDaemon).
     'POST /api/shutdown': () => {
       setTimeout(shutdown, 100)

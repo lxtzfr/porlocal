@@ -79,6 +79,18 @@ export function useProcessAction() {
   })
 }
 
+export type CheckoutAction = 'env' | 'free' | 'done'
+
+/** `env` rewrites the checkout's `.env.local`; `free` / `done` run its `pnpm wt` on the slot. */
+export function useCheckoutAction() {
+  return useMutation({
+    mutationFn: ({ action, path }: { action: CheckoutAction; path: string; label: string }) =>
+      action === 'env' ? call<{ keys: string[] }>('/api/checkout/env', { path }).then((r) => `rewritten: ${r.keys.join(', ') || 'no key'}`) : call<{ output: string }>('/api/checkout/wt', { path, command: action }).then((r) => r.output.split('\n').filter((l) => l.startsWith('[wt]')).at(-1) ?? 'done'),
+    onSuccess: (message, { action, label }) => notifications.show({ title: `${label}: ${action === 'env' ? '.env.local' : `wt ${action}`}`, message, color: 'teal' }),
+    onError: (err, { action, label }) => notifications.show({ title: `${label}: ${action === 'env' ? '.env.local' : `wt ${action}`} failed`, message: err.message, color: 'red', autoClose: false }),
+  })
+}
+
 export function useKill() {
   return useMutation({
     mutationFn: (pid: number) => call<Zombie>('/api/kill', { pid }),

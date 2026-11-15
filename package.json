@@ -47,6 +47,7 @@
   },
   "pnpm": {
     "onlyBuiltDependencies": [
+      "@lxtzfr/wt",
       "esbuild"
     ]
   },
@@ -60,5 +61,8 @@
     "env": {
       "DASHBOARD_PORT": "{port:dashboard}"
     }
+  },
+  "dependencies": {
+    "@lxtzfr/wt": "github:lxtzfr/wt#v1.0.0"
   }
 }

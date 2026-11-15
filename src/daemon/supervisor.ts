@@ -152,7 +152,7 @@ export class Supervisor {
   }
 
   /** Rewrites `.env.local` of `ws`; returns the values (also injected into the process). */
-  private writeEnv(ws: Workspace): Record<string, string> {
+  writeEnv(ws: Workspace): Record<string, string> {
     if (Object.keys(ws.env).length === 0) return {}
     const { values, skipped } = resolveEnv(ws, this.portOf)
     if (writeBlock(ws.path, values)) this.log.info(`${workspaceLabel(ws)}: .env.local rewritten (${Object.entries(values).filter(([k]) => !/DATABASE/i.test(k)).map(([k, v]) => `${k}=${v}`).join(', ')})`)

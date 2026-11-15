@@ -25,7 +25,7 @@ writeFileSync(join(web, '.env.local'), ENV)
 writeFileSync(join(web2, '.env.local'), ENV.replace('4100', '3001'))
 for (const path of [server, web, web2, admin]) writeFileSync(join(path, 'package.json'), '{}')
 
-const ws = (path: string, repo: string, n: number, env: Record<string, string> = {}): Workspace => ({ path, main: join(root, repo), repo, n, services: {}, env, links: {} })
+const ws = (path: string, repo: string, n: number, env: Record<string, string> = {}): Workspace => ({ path, main: join(root, repo), repo, n, name: n === 1 ? repo : `${repo}-${n}`, services: {}, env, links: {} })
 const workspaces: Record<string, Workspace> = {
   [server]: ws(server, 'server', 1),
   [web]: ws(web, 'web', 1, { API_URL: '{url:server/api}' }),
