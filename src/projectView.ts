@@ -24,8 +24,12 @@ export interface CheckoutView {
 
 const basename = (path: string) => path.split('/').pop() ?? path
 
+/** `main`, `slot 2`, `slot 2 (free)`, `outside slots`. */
+export const slotLabel = (c: Pick<Checkout, 'slot' | 'free'>, main = 'main') =>
+  c.slot === 1 ? main : c.slot ? `slot ${c.slot}${c.free ? ' (free)' : ''}` : 'outside slots'
+
 // The state feed (1 s) can show a checkout before the machine feed (5 s) knows it.
-const bare = (path: string): Checkout => ({ path, repo: basename(path), slot: null, slotActions: false, label: basename(path), remote: null, branch: null, issueUrl: null, uses: [], usedBy: [] })
+const bare = (path: string): Checkout => ({ path, repo: basename(path), slot: null, free: false, slotActions: false, label: basename(path), remote: null, branch: null, issueUrl: null, uses: [], usedBy: [] })
 
 /** Everything porlocal knows, checkout by checkout. */
 export function checkoutViews(state: StateResponse, machine: MachineResponse | undefined): CheckoutView[] {

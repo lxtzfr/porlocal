@@ -20,10 +20,17 @@ const web = dir('web')
 const web2 = normalize(join(root + '.wt', 'web-2'))
 mkdirSync(web2, { recursive: true })
 const admin = dir('admin')
+// A free slot (detached, wt freed it): points at the main server, listed only for what runs there.
+const server3 = normalize(join(root + '.wt', 'server-3'))
+mkdirSync(server3, { recursive: true })
+const server3Git = dir('server', '.git', 'worktrees', 'server-3')
+writeFileSync(join(server3Git, 'HEAD'), '1f79810f0123456789abcdef0123456789abcdef\n')
+writeFileSync(join(server3, '.git'), `gitdir: ${server3Git}\n`)
 const ENV = '# local services: start\nAPI_URL=http://localhost:4100\n# local services: end\n'
+writeFileSync(join(server3, '.env.local'), ENV)
 writeFileSync(join(web, '.env.local'), ENV)
 writeFileSync(join(web2, '.env.local'), ENV.replace('4100', '3001'))
-for (const path of [server, web, web2, admin]) writeFileSync(join(path, 'package.json'), '{}')
+for (const path of [server, web, web2, admin, server3]) writeFileSync(join(path, 'package.json'), '{}')
 
 const ws = (path: string, repo: string, n: number, env: Record<string, string> = {}): Workspace => ({ path, main: join(root, repo), repo, n, name: n === 1 ? repo : `${repo}-${n}`, services: {}, env, links: {} })
 const workspaces: Record<string, Workspace> = {
@@ -32,12 +39,13 @@ const workspaces: Record<string, Workspace> = {
   [web2]: ws(web2, 'web', 2, { API_URL: '{url:server/api}' }),
   // Never run, points at nothing known: left out.
   [admin]: ws(admin, 'admin', 1),
+  [server3]: ws(server3, 'server', 3, { API_URL: '{url:server/api}' }),
 }
 const state = { leases: [{ workspace: server, service: 'api', port: 4100 }], processes: [], bindings: [] } as unknown as State
 
 describe('checkouts', () => {
-  const run = (listening: number[], zombies: Zombie[] = []) =>
-    checkouts({ state, zombies, listening: new Set(listening), workspace: (p) => workspaces[p]! })
+  const run = (listening: number[], zombies: Zombie[] = [], extra: State['leases'] = []) =>
+    checkouts({ state: { ...state, leases: [...state.leases, ...extra] } as State, zombies, listening: new Set(listening), workspace: (p) => workspaces[p]! })
 
   it('lists the known checkouts and the siblings using them, with their links', () => {
     const list = run([4100])
@@ -50,6 +58,13 @@ describe('checkouts', () => {
 
   it('flags a link whose target does not listen', () => {
     expect(run([]).find((c) => c.label === 'web')!.uses[0]!.status).toBe('down')
+  })
+
+  it('lists a free slot only for what runs there, without its detached SHA', () => {
+    const lease = { workspace: server3, service: 'api', port: 4120 } as State['leases'][number]
+    const free = run([4100], [], [lease]).find((c) => c.label === 'server-3')!
+    expect(free).toMatchObject({ free: true, branch: null })
+    expect(run([4100]).map((c) => c.label)).toEqual(['server', 'web', 'web-2'])
   })
 })
 
@@ -79,8 +94,8 @@ describe('gitInfo', () => {
 })
 
 describe('projectGroups', () => {
-  const c = (path: string, label: string, slot: number, uses: string[] = [], branch = 'main') =>
-    ({ path, repo: label.replace(/-\d+$/, ''), slot, label, remote: null, branch, issueUrl: null, uses: uses.map((w) => ({ key: 'K', workspace: w, service: 's', port: 1, status: 'ok' })), usedBy: [] }) as Checkout
+  const c = (path: string, label: string, slot: number, uses: string[] = [], branch: string | null = 'main') =>
+    ({ path, repo: label.replace(/-\d+$/, ''), slot, free: branch === null, label, remote: null, branch, issueUrl: null, uses: uses.map((w) => ({ key: 'K', workspace: w, service: 's', port: 1, status: 'ok' })), usedBy: [] }) as Checkout
   const P = 'C:/Git/P/ws'
   const list = [
     c(`${P}/server`, 'server', 1, [`${P}/web`]),
@@ -91,6 +106,8 @@ describe('projectGroups', () => {
     // Points at the main server: joins the main group.
     c(`${P}.wt/admin-3`, 'admin-3', 3, [`${P}/server`], '7-y'),
     c(`${P}.wt/unity-2`, 'unity-2', 2, [], 'feat'),
+    // Free: back on the main server, but no ticket ties it to the main group.
+    c(`${P}.wt/web-4`, 'web-4', 4, [`${P}/server`], null),
   ]
   const mainOf = (path: string) => `${P}/${path.split('/').pop()!.replace(/-\d+$/, '')}`
 
@@ -103,6 +120,7 @@ describe('projectGroups', () => {
       ['TRA-SIM · main + slot 3', null, ['server', 'web', 'unity', 'admin-3']],
       ['TRA-SIM · slot 2', '9-x', ['server-2', 'web-2']],
       ['TRA-SIM · slot 2', 'feat', ['unity-2']],
+      ['TRA-SIM · web-4 (free)', null, ['web-4']],
     ])
     expect(groups.every((g) => g.kind === 'workspace' && g.workspace === dirname(join(dir, 'x')))).toBe(true)
   })
@@ -113,6 +131,7 @@ describe('projectGroups', () => {
       ['linked', 'admin + server + unity + web · main + slot 3'],
       ['linked', 'server + web · slot 2'],
       ['solo', 'unity · slot 2'],
+      ['solo', 'web · web-4 (free)'],
     ])
   })
 
