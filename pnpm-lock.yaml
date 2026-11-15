@@ -7,6 +7,10 @@ settings:
 importers:
 
   .:
+    dependencies:
+      '@lxtzfr/wt':
+        specifier: github:lxtzfr/wt#v0.1.0
+        version: https://codeload.github.com/lxtzfr/wt/tar.gz/cd0977466c3585edf0ddb6f0f0d368e1c04ba2cb
     devDependencies:
       '@mantine/core':
         specifier: ^9.8.0
@@ -343,6 +347,12 @@ packages:
 
   '@jridgewell/trace-mapping@0.3.31':
     resolution: {integrity: sha512-zzNR+SdQSDJzc8joaeP8QQoCQr8NuYx2dIIytl1QeBEZHJ9uW6hebsrYgbz8hJwUQao3TWCMtmfV8Nu1twOLAw==}
+
+  '@lxtzfr/wt@https://codeload.github.com/lxtzfr/wt/tar.gz/cd0977466c3585edf0ddb6f0f0d368e1c04ba2cb':
+    resolution: {tarball: https://codeload.github.com/lxtzfr/wt/tar.gz/cd0977466c3585edf0ddb6f0f0d368e1c04ba2cb}
+    version: 0.1.0
+    engines: {node: '>=22'}
+    hasBin: true
 
   '@mantine/core@9.8.0':
     resolution: {integrity: sha512-+2Y+GBM6WvBJgBBb7hrfEvHbyljuRsOqC1GjxNpmX6NcD2SwmDXf9ZVFfquyXvi8fFerMrTpAwYdfb6k2PGAlQ==}
@@ -1814,6 +1824,8 @@ snapshots:
     dependencies:
       '@jridgewell/resolve-uri': 3.1.3
       '@jridgewell/sourcemap-codec': 1.6.0
+
+  '@lxtzfr/wt@https://codeload.github.com/lxtzfr/wt/tar.gz/cd0977466c3585edf0ddb6f0f0d368e1c04ba2cb': {}
 
   '@mantine/core@9.8.0(@mantine/hooks@9.8.0(react@19.3.1))(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)':
     dependencies:
