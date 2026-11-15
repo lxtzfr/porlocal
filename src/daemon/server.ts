@@ -101,10 +101,10 @@ export function startServer(sup: Supervisor, adb: Adb, log: Logger, shutdown: ()
     'GET /api/ports': () => machine().ports,
     // Only a PID listed as a zombie right now: never a way to kill any process by number.
     'POST /api/kill': (body) => {
-      const z = zombies().find((x) => x.pid === Number(body.pid))
+      const z = zombies().find((x) => x.pid === Number(body.pid) || x.root === Number(body.pid))
       if (!z) throw new UserError(`PID ${body.pid} is not a process left outside porlocal (porlocal zombies)`)
-      killTree(z.pid)
-      log.info(`killed zombie PID ${z.pid} (${z.name}, ${z.checkout}${z.ports.length ? `, ports ${z.ports.join(' ')}` : ''})`)
+      killTree(z.root)
+      log.info(`killed zombie PID ${z.pid} and its tree from PID ${z.root} (${z.name}, ${z.checkout}${z.ports.length ? `, ports ${z.ports.join(' ')}` : ''})`)
       return z
     },
     // A checkout the dashboard shows, never any folder: these write files and move branches.

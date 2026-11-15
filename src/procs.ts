@@ -84,6 +84,9 @@ export function killTree(pid: number): void {
 }
 
 const SHELLS = /^(bash|sh|zsh|dash|fish|cmd|powershell|pwsh)(\.exe)?$/i
+
+/** A terminal tab's shell (not one running a single command): where a dev tree started by hand stops. */
+export const isInteractiveShell = (p: ProcInfo) => SHELLS.test(p.name) && !isOneShot(p.cmd)
 const RUNNERS = /(porlocal|pnpm|npm|npx|corepack|yarn)/i
 
 // A shell given a command (`-c`, `/c`, `-Command`, `-File`) or a script (a positional argument, e.g. a bin shim)

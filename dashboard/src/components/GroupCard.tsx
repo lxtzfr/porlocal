@@ -206,13 +206,13 @@ function CheckoutRows({ v, ctx, now, onLogs, header }: { v: CheckoutView; ctx: C
             <Group gap={6} wrap="nowrap">
               <Badge color="orange" variant="light">started by hand</Badge>
               {z.orphan && (
-                <Tooltip label="Its parent is gone">
+                <Tooltip label="The top of its process tree lost its parent (a closed terminal or launcher)">
                   <Badge color="yellow" variant="light" size="sm">orphan</Badge>
                 </Tooltip>
               )}
             </Group>
           </Table.Td>
-          <Table.Td><Text size="xs" c="dimmed">PID {z.pid}</Text></Table.Td>
+          <Table.Td><Text size="xs" c="dimmed">PID {z.pid}{z.root !== z.pid && ` (tree ${z.root})`}</Text></Table.Td>
           <Table.Td />
           <Table.Td><Group justify="flex-end"><KillButton pid={z.pid} name={z.name} checkout={z.checkout} /></Group></Table.Td>
         </Table.Tr>
