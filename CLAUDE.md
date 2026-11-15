@@ -20,8 +20,9 @@ same `.env.local` block my-stack's `wt env` writes (contract: `src/envLocal.ts`,
 
 ## Rules
 
-- Never move a port silently: a taken leased / declared port is an error unless `--new-port`; a move rewrites the
-  `.env.local` of every checkout reading it and flags (or restarts) what runs there.
+- `run` / `up` just work: a service is on its declared port whenever free, else on another one, never silently (said,
+  the `.env.local` of every checkout reading it rewritten, what porlocal runs there restarted; `--keep-port`: error).
+- Other repos only ever point at what porlocal launched: a process started by hand on the port is named, never adopted.
 - Launched processes must outlive the daemon: output goes straight to their log file (no pipe), stop = kill the whole
   tree (`killTree`), re-adoption by PID or port holder.
 - The API stays local-only: Host header checked, POST JSON only (no cross-site form).
