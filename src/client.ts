@@ -14,6 +14,30 @@ export async function api<T = any>(path: string, body?: unknown): Promise<T> {
   return data as T
 }
 
+/** Reads a server-sent event stream until the daemon closes it (it stops) or `onEvent` throws. */
+export async function streamEvents(path: string, onEvent: (event: string, data: any) => void): Promise<void> {
+  const res = await fetch(`${DAEMON_URL}${path}`)
+  if (!res.ok || !res.body) throw new ApiError(((await res.json().catch(() => null)) as any)?.error ?? `HTTP ${res.status}`)
+  const decoder = new TextDecoder()
+  let buffer = ''
+  try {
+    for await (const chunk of res.body) {
+      buffer += decoder.decode(chunk as Uint8Array, { stream: true })
+      let end: number
+      while ((end = buffer.indexOf('\n\n')) >= 0) {
+        const block = buffer.slice(0, end)
+        buffer = buffer.slice(end + 2)
+        const event = /^event: (.*)$/m.exec(block)?.[1]
+        const data = block.split('\n').filter((l) => l.startsWith('data: ')).map((l) => l.slice(6)).join('\n')
+        if (event) onEvent(event, JSON.parse(data))
+      }
+    }
+  } catch (err) {
+    // The daemon went away mid-stream: the follow just ends.
+    if ((err as Error).name !== 'TypeError') throw err
+  }
+}
+
 export async function daemonUp(): Promise<boolean> {
   try {
     await api('/api/health')

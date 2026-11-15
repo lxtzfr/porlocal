@@ -2,7 +2,7 @@ import { ActionIcon, Badge, Container, Group, Stack, Text, Title, Tooltip, useCo
 import { IconMoon, IconSun } from '@tabler/icons-react'
 import { createFileRoute } from '@tanstack/react-router'
 import { useState } from 'react'
-import { useDaemonState, useZombies } from '../api'
+import { useDaemonState, useEvents, useZombies } from '../api'
 import { DevicesSection } from '../components/DevicesSection'
 import { LeasesTable } from '../components/LeasesTable'
 import { LogDrawer } from '../components/LogDrawer'
@@ -26,6 +26,7 @@ function ThemeToggle() {
 }
 
 function Dashboard() {
+  const live = useEvents()
   const state = useDaemonState()
   const zombies = useZombies()
   const [logId, setLogId] = useState<string | null>(null)
@@ -35,13 +36,12 @@ function Dashboard() {
       <Group justify="space-between" mb="md">
         <Group gap="sm" align="baseline">
           <Title order={1} size="h3">porlocal</Title>
-          {state.isError ? (
-            <Badge color="red" variant="light">daemon unreachable</Badge>
-          ) : s ? (
+          <Badge color={live ? 'teal' : 'red'} variant="dot">{live ? 'live' : 'daemon unreachable'}</Badge>
+          {s && (
             <Text size="sm" c="dimmed">
-              {s.processes.filter((p) => isRunning(p.status)).length} running, updated {new Date(state.dataUpdatedAt).toLocaleTimeString()}
+              {s.processes.filter((p) => isRunning(p.status)).length} running, last change {new Date(state.dataUpdatedAt).toLocaleTimeString()}
             </Text>
-          ) : null}
+          )}
         </Group>
         <ThemeToggle />
       </Group>
