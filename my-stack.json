@@ -1,0 +1,22 @@
+{
+  "kits": {
+    "core": {
+      "sha": "818d88ed7f991c91684a0cc74db3cf66d4d23210"
+    }
+  },
+  "local": [
+    "core"
+  ],
+  "files": {
+    "claude/my-stack/core/CLAUDE.md": "sha256:92366321830502ff7d3f8cbbd27b8914e81fb80d7fba1d518c816f6843da2d3a",
+    "claude/my-stack/core/my-stack.md": "sha256:7e5683b709dd79e33c9df626b7264690091d77702293da00363179ed88bdc94f",
+    "claude/my-stack/core/sentry.md": "sha256:c734bb50043f3436b9bba616bfcec7f10fd3f19f6d97319bf4a98e83d562e311",
+    "claude/my-stack/core/tickets.md": "sha256:b8c76dfc06caeddc537bd22c300878ef82c4b6308a2ff41de697e5dfc0200ef3",
+    "claude/my-stack/core/worktrees.md": "sha256:d8ed01edc889e924d816783d52f7a727cd7c12f354e19075fb0a779fd76a298f",
+    "scripts/my-stack/wt/bin/wt.mjs": "sha256:4639fd38c468d75dda1bc6bf1a5f065e9eb4e5252a8cd9368c759541bb6324ec",
+    "scripts/my-stack/wt/lib/issue.mjs": "sha256:561d6b3271ec90904d70350d94822aead155d3e9c8935874e48a0bcf295e0983",
+    "scripts/my-stack/wt/lib/run.mjs": "sha256:f3f052bfbb1f40f2e701eed6c0d7da00de0171a3cfb351a2f1622e6492e4c787",
+    "scripts/my-stack/wt/lib/setup.mjs": "sha256:b3c70fc924ea390f7e48440d84affa6d19726dfef0f48d7c5950c88790353a6c",
+    "scripts/my-stack/wt/lib/slots.mjs": "sha256:92c3a879ae00a837dbd8cd980feb1c049f568029e15fc58b3b0fdd422c29999f"
+  }
+}

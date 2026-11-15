@@ -2,3 +2,26 @@ node_modules/
 dist/
 .env
 *.log
+
+# my-stack:local:start
+# Managed by my-stack (`my-stack update`): do not edit inside this block.
+/claude/my-stack/core/CLAUDE.md
+/claude/my-stack/core/my-stack.md
+/claude/my-stack/core/sentry.md
+/claude/my-stack/core/tickets.md
+/claude/my-stack/core/worktrees.md
+/scripts/my-stack/wt/bin/wt.mjs
+/scripts/my-stack/wt/lib/issue.mjs
+/scripts/my-stack/wt/lib/run.mjs
+/scripts/my-stack/wt/lib/setup.mjs
+/scripts/my-stack/wt/lib/slots.mjs
+# my-stack:local:end
+
+# my-stack:core:.gitignore:start
+# Managed by my-stack (`my-stack update`): do not edit inside this block.
+# IDE and editor folders: per-machine settings, never project config
+.vscode/
+.idea/
+.vs/
+.fleet/
+# my-stack:core:.gitignore:end
