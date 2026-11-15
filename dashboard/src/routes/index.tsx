@@ -7,6 +7,7 @@ import { Cmd } from '../components/cells'
 import { GroupCard } from '../components/GroupCard'
 import { DevicesSection } from '../components/DevicesSection'
 import { LogDrawer } from '../components/LogDrawer'
+import { HighlightProvider } from '../highlight'
 import { Empty, Section } from '../components/Section'
 
 export const Route = createFileRoute('/')({ component: Dashboard })
@@ -18,7 +19,7 @@ function Dashboard() {
   const s = state.data
   const groups = s ? projectView(s, machine.data) : []
   return (
-    <>
+    <HighlightProvider>
       <Stack gap="md">
         {!s ? (
           <Empty>Loading…</Empty>
@@ -33,6 +34,6 @@ function Dashboard() {
         {s && <Section title="Devices">{<DevicesSection state={s} />}</Section>}
       </Stack>
       <LogDrawer id={logId} onClose={() => setLogId(null)} />
-    </>
+    </HighlightProvider>
   )
 }

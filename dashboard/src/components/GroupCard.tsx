@@ -3,6 +3,7 @@ import { IconArrowLeft, IconArrowRight, IconBrandVscode, IconGitBranch } from '@
 import type { CheckoutLink, LinkStatus, PortHolder } from '../../../src/api'
 import { groupOf, targetLabel, type CheckoutView, type GroupView, type ServiceRow } from '../../../src/projectView'
 import { useNow } from '../api'
+import { HIGHLIGHT_BG, useHighlighter, useIsHighlighted } from '../highlight'
 import { ago, isRunning } from '../format'
 import { Path, PortLink } from './cells'
 import { KillButton } from './KillButton'
@@ -39,11 +40,23 @@ interface Ctx {
 function LinkBadge({ l, ctx }: { l: CheckoutLink; ctx: Ctx }) {
   const outside = groupOf(ctx.all, l.workspace)
   const leaves = outside && outside.id !== ctx.group.group.id
+  const hover = useHighlighter({ workspace: l.workspace, service: l.service })
   const tip = l.status === 'stale' ? `.env.local has ${l.written ?? 'nothing'}, should be ${l.expected}: porlocal run (or pnpm wt env) rewrites it` : LINK[l.status].tip
   return (
     <Tooltip label={leaves ? `${tip}. Points out of this group, at ${outside.label}: wanted, or a missing wt link?` : tip} multiline maw={420}>
-      <Badge color={l.status === 'ok' && leaves ? 'yellow' : LINK[l.status].color} variant="light" leftSection={<IconArrowRight size={12} />} tt="none">
+      <Badge {...hover} style={{ cursor: 'default' }} color={l.status === 'ok' && leaves ? 'yellow' : LINK[l.status].color} variant="light" leftSection={<IconArrowRight size={12} />} tt="none">
         {l.key} {targetLabel(ctx.views, l.workspace, l.service)}{l.port ? ` :${l.port}` : ''}{l.status !== 'ok' ? ` (${l.status})` : ''}{leaves ? ` · ${outside.label}` : ''}
+      </Badge>
+    </Tooltip>
+  )
+}
+
+function UsedByBadge({ u }: { u: CheckoutView['checkout']['usedBy'][number] }) {
+  const hover = useHighlighter({ workspace: u.workspace })
+  return (
+    <Tooltip label={`${u.key} of ${u.workspace}: ${LINK[u.status].tip}`} multiline maw={420}>
+      <Badge {...hover} style={{ cursor: 'default' }} color={LINK[u.status].color} variant="light" leftSection={<IconArrowLeft size={12} />} tt="none">
+        used by {u.label} {u.key}{u.status !== 'ok' ? ` (${u.status})` : ''}
       </Badge>
     </Tooltip>
   )
@@ -74,13 +87,7 @@ function CheckoutHeader({ v, ctx }: { v: CheckoutView; ctx: Ctx }) {
       {(c.uses.length > 0 || usedBy.length > 0) && (
         <Group gap={6}>
           {c.uses.map((l) => <LinkBadge key={l.key + l.service} l={l} ctx={ctx} />)}
-          {usedBy.map((u) => (
-            <Tooltip key={u.workspace + u.key} label={`${u.key} of ${u.workspace}: ${LINK[u.status].tip}`} multiline maw={420}>
-              <Badge color={LINK[u.status].color} variant="light" leftSection={<IconArrowLeft size={12} />} tt="none">
-                used by {u.label} {u.key}{u.status !== 'ok' ? ` (${u.status})` : ''}
-              </Badge>
-            </Tooltip>
-          ))}
+          {usedBy.map((u) => <UsedByBadge key={u.workspace + u.key} u={u} />)}
         </Group>
       )}
     </Stack>
@@ -120,10 +127,25 @@ function ServiceStatus({ r }: { r: ServiceRow }) {
   )
 }
 
+function ServiceRowView({ workspace, r, now, onLogs }: { workspace: string; r: ServiceRow; now: number; onLogs: (id: string) => void }) {
+  const lit = useIsHighlighted(workspace, r.service)
+  return (
+    <Table.Tr bg={lit ? HIGHLIGHT_BG : undefined} style={{ transition: 'background-color 120ms' }}>
+      <Table.Td><Text fw={600} size="sm">{r.service}</Text></Table.Td>
+      <Table.Td><PortCell r={r} /></Table.Td>
+      <Table.Td><ServiceStatus r={r} /></Table.Td>
+      <Table.Td>{r.process && <Owner p={r.process} now={now} />}</Table.Td>
+      <Table.Td><Text size="sm">{r.process && isRunning(r.process.status) ? ago(r.process.startedAt, now) : ''}</Text></Table.Td>
+      <Table.Td>{r.process && <ProcessActions p={r.process} onLogs={onLogs} />}</Table.Td>
+    </Table.Tr>
+  )
+}
+
 function CheckoutRows({ v, ctx, now, onLogs }: { v: CheckoutView; ctx: Ctx; now: number; onLogs: (id: string) => void }) {
+  const headerLit = useIsHighlighted(v.checkout.path)
   return (
     <>
-      <Table.Tr bg="var(--mantine-color-default-hover)">
+      <Table.Tr bg={headerLit ? HIGHLIGHT_BG : 'var(--mantine-color-default-hover)'}>
         <Table.Td colSpan={COLUMNS.length}><CheckoutHeader v={v} ctx={ctx} /></Table.Td>
       </Table.Tr>
       {!v.services.length && !v.hand.length && (
@@ -131,16 +153,7 @@ function CheckoutRows({ v, ctx, now, onLogs }: { v: CheckoutView; ctx: Ctx; now:
           <Table.Td colSpan={COLUMNS.length}><Text size="sm" c="dimmed">Nothing running here.</Text></Table.Td>
         </Table.Tr>
       )}
-      {v.services.map((r) => (
-        <Table.Tr key={r.service}>
-          <Table.Td><Text fw={600} size="sm">{r.service}</Text></Table.Td>
-          <Table.Td><PortCell r={r} /></Table.Td>
-          <Table.Td><ServiceStatus r={r} /></Table.Td>
-          <Table.Td>{r.process && <Owner p={r.process} now={now} />}</Table.Td>
-          <Table.Td><Text size="sm">{r.process && isRunning(r.process.status) ? ago(r.process.startedAt, now) : ''}</Text></Table.Td>
-          <Table.Td>{r.process && <ProcessActions p={r.process} onLogs={onLogs} />}</Table.Td>
-        </Table.Tr>
-      ))}
+      {v.services.map((r) => <ServiceRowView key={r.service} workspace={v.checkout.path} r={r} now={now} onLogs={onLogs} />)}
       {v.hand.map((z) => (
         <Table.Tr key={z.pid}>
           <Table.Td>
