@@ -18,24 +18,38 @@ export interface PortHolder {
   pid: number
 }
 
-/** Who listens on `port` (best effort: netstat on Windows, lsof elsewhere). */
-export function portHolder(port: number): PortHolder | null {
+/** Every listening TCP port: PID -> its ports (best effort: netstat on Windows, lsof elsewhere). */
+export function listeningPorts(): Map<number, number[]> {
+  const byPid = new Map<number, number[]>()
+  const add = (pid: number, port: number) => {
+    const ports = byPid.get(pid) ?? []
+    if (!ports.includes(port)) byPid.set(pid, [...ports, port])
+  }
   try {
     if (process.platform === 'win32') {
-      const out = execFileSync('netstat', ['-ano', '-p', 'TCP'], { encoding: 'utf-8', stdio: ['ignore', 'pipe', 'ignore'] })
-      const out6 = execFileSync('netstat', ['-ano', '-p', 'TCPv6'], { encoding: 'utf-8', stdio: ['ignore', 'pipe', 'ignore'] })
-      for (const line of `${out}\n${out6}`.split(/\r?\n/)) {
+      const out = ['TCP', 'TCPv6'].map((proto) => execFileSync('netstat', ['-ano', '-p', proto], { encoding: 'utf-8', stdio: ['ignore', 'pipe', 'ignore'], windowsHide: true })).join('\n')
+      for (const line of out.split(/\r?\n/)) {
         const cols = line.trim().split(/\s+/)
-        if (cols[0] === 'TCP' && cols[3] === 'LISTENING' && cols[1]?.endsWith(`:${port}`)) return { pid: Number(cols[4]) }
+        if (cols[0] === 'TCP' && cols[3] === 'LISTENING') add(Number(cols[4]), Number(cols[1]!.slice(cols[1]!.lastIndexOf(':') + 1)))
       }
-      return null
+    } else {
+      // -F pn: `p<pid>` then `n<addr>:<port>` lines.
+      let pid = 0
+      for (const line of execFileSync('lsof', ['-nP', '-iTCP', '-sTCP:LISTEN', '-F', 'pn'], { encoding: 'utf-8', stdio: ['ignore', 'pipe', 'ignore'] }).split('\n')) {
+        if (line.startsWith('p')) pid = Number(line.slice(1))
+        else if (line.startsWith('n') && pid) add(pid, Number(line.slice(line.lastIndexOf(':') + 1)))
+      }
     }
-    const out = execFileSync('lsof', ['-nP', `-iTCP:${port}`, '-sTCP:LISTEN', '-t'], { encoding: 'utf-8', stdio: ['ignore', 'pipe', 'ignore'] })
-    const pid = Number(out.split('\n')[0])
-    return pid ? { pid } : null
   } catch {
-    return null
+    // no netstat / lsof, or none listening (lsof exits 1)
   }
+  return byPid
+}
+
+/** Who listens on `port`. */
+export function portHolder(port: number): PortHolder | null {
+  for (const [pid, ports] of listeningPorts()) if (ports.includes(port)) return { pid }
+  return null
 }
 
 export async function waitListening(port: number, timeoutMs: number, stillAlive: () => boolean): Promise<boolean> {

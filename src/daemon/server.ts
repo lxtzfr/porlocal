@@ -2,11 +2,13 @@ import { existsSync, readFileSync } from 'node:fs'
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http'
 import type { Logger } from '../log.js'
 import { DAEMON_PORT } from '../paths.js'
-import { isAlive } from '../procs.js'
+import { listeningPorts } from '../ports.js'
+import { isAlive, killTree, processTable } from '../procs.js'
 import { refTarget, resolveWorkspace } from '../workspace.js'
 import type { Adb } from './adb.js'
 import { DASHBOARD_HTML } from './dashboard.js'
 import { Supervisor, UserError, type RunRequest } from './supervisor.js'
+import { findZombies } from './zombies.js'
 
 export const VERSION = '0.1.0'
 
@@ -32,6 +34,7 @@ function tail(file: string, lines: number): string {
 }
 
 export function startServer(sup: Supervisor, adb: Adb, log: Logger, shutdown: () => void) {
+  const zombies = () => findZombies(sup.state, processTable(), listeningPorts(), [process.pid])
   const routes: Record<string, (body: any, url: URL) => Promise<unknown> | unknown> = {
     'GET /api/health': () => ({ ok: true, pid: process.pid, version: VERSION }),
     'GET /api/state': () => ({
@@ -57,6 +60,15 @@ export function startServer(sup: Supervisor, adb: Adb, log: Logger, shutdown: ()
       const p = sup.find(url.searchParams.get('id') ?? '')
       if (!p) throw new UserError('unknown process')
       return { id: p.id, text: tail(p.logFile, Number(url.searchParams.get('tail') ?? 200)) }
+    },
+    'GET /api/zombies': () => zombies(),
+    // Only a PID listed as a zombie right now: never a way to kill any process by number.
+    'POST /api/kill': (body) => {
+      const z = zombies().find((x) => x.pid === Number(body.pid))
+      if (!z) throw new UserError(`PID ${body.pid} is not a process left outside porlocal (porlocal zombies)`)
+      killTree(z.pid)
+      log.info(`killed zombie PID ${z.pid} (${z.name}, ${z.checkout}${z.ports.length ? `, ports ${z.ports.join(' ')}` : ''})`)
+      return z
     },
     'POST /api/shutdown': () => {
       setTimeout(shutdown, 100)

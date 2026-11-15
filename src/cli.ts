@@ -6,6 +6,7 @@ import { DAEMON_LOG, DAEMON_URL } from './paths.js'
 import { readMsysParents } from './procs.js'
 import { resolveWorkspace, workspaceLabel } from './workspace.js'
 import type { Lease, Managed } from './daemon/state.js'
+import type { Zombie } from './daemon/zombies.js'
 
 const USAGE = `porlocal: leases ports, supervises dev servers, maps device ports (optional: projects run without it)
 
@@ -14,6 +15,7 @@ const USAGE = `porlocal: leases ports, supervises dev servers, maps device ports
   porlocal ls [--json]                 processes, ports, owners
   porlocal stop|restart|keep|forget <service|id>      keep: no owner any more (runs until stopped)
   porlocal logs <service|id> [-f] [-n <lines>]
+  porlocal zombies [--json] | kill <pid>  dev processes of these checkouts not run by porlocal (a pnpm dev by hand, left over)
   porlocal lease <service> [--new-port] | release <service>
   porlocal device bind <service|repo/service> --port <device port> [--device <serial>]
   porlocal device unbind --port <device port> [--device <serial>] | device ls
@@ -161,6 +163,18 @@ async function main(): Promise<void> {
     case 'forget': {
       const result = await api<Managed | null>(`/api/${command}`, { id: toId(sub) })
       return console.log(result && command !== 'forget' ? describe(result) : `${toId(sub)}: ${command}`)
+    }
+    case 'zombies': {
+      const zombies = await api<Zombie[]>('/api/zombies')
+      if (args.flags.json) return console.log(JSON.stringify(zombies, null, 2))
+      if (!zombies.length) return console.log('none: every dev process of these checkouts runs under porlocal')
+      printTable([['pid', 'name', 'ports', 'orphan', 'checkout', 'command'], ...zombies.map((z) => [String(z.pid), z.name, z.ports.join(' ') || '-', z.orphan ? 'yes' : '', z.checkout, z.cmd.slice(0, 80)])])
+      return console.log('\nporlocal kill <pid> stops one (its whole tree)')
+    }
+    case 'kill': {
+      if (!sub) fail('porlocal kill <pid>   (a PID listed by porlocal zombies)')
+      const z = await api<Zombie>('/api/kill', { pid: Number(sub) })
+      return console.log(`killed PID ${z.pid} (${z.name}, ${z.checkout})`)
     }
     case 'logs': {
       const id = toId(sub)
