@@ -8,7 +8,7 @@ import { DAEMON_LOG, DAEMON_URL, TRAY_LOG } from './paths.js'
 import { readMsysParents } from './procs.js'
 import { resolveWorkspace, workspaceLabel } from './workspace.js'
 import type { Lease, MachineResponse, Managed, ProjectPort, StateResponse, Zombie } from './api.js'
-import { projectView, targetLabel } from './projectView.js'
+import { projectView, slotLabel, targetLabel } from './projectView.js'
 
 const USAGE = `porlocal: leases ports, supervises dev servers, maps device ports (optional: projects run without it)
 
@@ -164,7 +164,7 @@ async function main(): Promise<void> {
         console.log(`${group.label}${group.workspace ? `  (workspace ${group.workspace})` : ''}${group.branch ? `  branch ${group.branch}` : ''}${group.issueUrl ? `  ${group.issueUrl}` : ''}`)
         for (const v of checkouts) {
           const c = v.checkout
-          const slot = c.slot === 1 ? 'main checkout' : c.slot ? `slot ${c.slot}` : 'outside slots'
+          const slot = slotLabel(c, 'main checkout')
           console.log(`  ${c.remote?.slug ?? c.repo}${c.slot !== 1 ? ` (${c.label})` : ''}  ${slot}${c.branch && c.branch !== group.branch ? `  branch ${c.branch}` : ''}  ${c.path}`)
           const rows = [
             ...v.services.map((r) => [

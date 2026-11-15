@@ -1,7 +1,7 @@
 import { existsSync } from 'node:fs'
 import type { Checkout, CheckoutLink, LinkStatus, State, Zombie } from '../api.js'
 import { envRefs, readBlock, resolveEnv } from '../envLocal.js'
-import { currentBranch, issueUrl, remoteOf, remoteWebUrl } from '../gitInfo.js'
+import { currentBranch, detachedHead, issueUrl, remoteOf, remoteWebUrl } from '../gitInfo.js'
 import { preferredPort, siblingCheckouts, workspaceLabel, type Workspace } from '../workspace.js'
 import { hasSlotActions } from './wtActions.js'
 
@@ -23,13 +23,18 @@ export function checkouts({ state, zombies, listening, workspace }: CheckoutsInp
 
   const known = new Set([...state.leases, ...state.processes, ...state.bindings].map((x) => x.workspace))
   for (const z of zombies) known.add(z.checkout)
+  // A free slot still points at the main checkouts: shown for what runs there, never as a link target or a sibling.
+  const isFree = (path: string) => {
+    const ws = workspace(path)
+    return ws.n !== null && ws.n >= 2 && detachedHead(path)
+  }
   const paths = new Set(known)
   for (const path of known) {
     if (!existsSync(path)) continue
     const ws = workspace(path)
-    for (const r of envRefs(ws)) if (existsSync(r.workspace)) paths.add(r.workspace)
+    for (const r of envRefs(ws)) if (existsSync(r.workspace) && !isFree(r.workspace)) paths.add(r.workspace)
     for (const sibling of siblingCheckouts(ws)) {
-      if (!paths.has(sibling) && envRefs(workspace(sibling)).some((r) => known.has(r.workspace))) paths.add(sibling)
+      if (!paths.has(sibling) && !isFree(sibling) && envRefs(workspace(sibling)).some((r) => known.has(r.workspace))) paths.add(sibling)
     }
   }
 
@@ -49,9 +54,10 @@ export function checkouts({ state, zombies, listening, workspace }: CheckoutsInp
 
   const list = [...paths].filter(existsSync).map((path) => {
     const ws = workspace(path)
-    const branch = currentBranch(path)
+    const free = isFree(path)
+    const branch = free ? null : currentBranch(path)
     const web = remoteWebUrl(ws.main)
-    return { path, repo: ws.repo, slot: ws.n, slotActions: hasSlotActions(ws), label: workspaceLabel(ws), remote: remoteOf(web), branch, issueUrl: issueUrl(branch, web), uses: linksOf(ws), usedBy: [] } as Checkout
+    return { path, repo: ws.repo, slot: ws.n, free, slotActions: hasSlotActions(ws), label: workspaceLabel(ws), remote: remoteOf(web), branch, issueUrl: issueUrl(branch, web), uses: linksOf(ws), usedBy: [] } as Checkout
   })
   const byPath = new Map(list.map((c) => [c.path, c]))
   for (const c of list) {

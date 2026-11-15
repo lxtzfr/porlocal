@@ -18,6 +18,13 @@ function gitDir(path: string): string | null {
   return target ? (isAbsolute(target) ? target : resolve(path, target)) : null
 }
 
+/** Is `path` a git checkout on no branch? (a slot wt freed: `wt free` / `wt done` leave it detached) */
+export function detachedHead(path: string): boolean {
+  const dir = gitDir(path)
+  const head = dir && read(join(dir, 'HEAD'))?.trim()
+  return !!head && !head.startsWith('ref: ')
+}
+
 /** The branch checked out at `path` (a short SHA when detached), null outside a git checkout. */
 export function currentBranch(path: string): string | null {
   const dir = gitDir(path)

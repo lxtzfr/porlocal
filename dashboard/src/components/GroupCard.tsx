@@ -1,7 +1,7 @@
 import { ActionIcon, Anchor, Badge, Card, Group, Stack, Table, Text, Title, Tooltip } from '@mantine/core'
 import { IconArrowLeft, IconArrowRight, IconBrandVscode, IconFolder, IconGitBranch, IconLink, IconStack2 } from '@tabler/icons-react'
 import type { CheckoutLink, LinkStatus, PortHolder } from '../../../src/api'
-import { groupOf, targetLabel, type CheckoutView, type GroupView, type ServiceRow } from '../../../src/projectView'
+import { groupOf, slotLabel, targetLabel, type CheckoutView, type GroupView, type ServiceRow } from '../../../src/projectView'
 import { useNow } from '../api'
 import { HIGHLIGHT_BG, useHighlighter, useIsHighlighted } from '../highlight'
 import { ago, isRunning } from '../format'
@@ -26,7 +26,6 @@ const KIND = {
 } as const
 
 const holderName = (h: PortHolder | null) => (!h ? 'nothing' : h.kind === 'porlocal' ? `porlocal ${h.id}` : `${h.name} (PID ${h.pid})`)
-const slotLabel = (slot: number | null) => (slot === 1 ? 'main' : slot ? `slot ${slot}` : 'outside slots')
 
 function Branch({ name, issueUrl }: { name: string; issueUrl: string | null }) {
   return (
@@ -92,7 +91,7 @@ function CheckoutHeader({ v, ctx, title }: { v: CheckoutView; ctx: Ctx; title?: 
         <Group gap="sm" wrap="nowrap">
           {title && <KindIcon kind={g.kind} />}
           <RepoName c={c} size={title ? 'lg' : undefined} />
-          {(title || g.label === g.name) && c.slot === 1 ? null : <Badge variant="outline" size="sm" color={c.slot === 1 ? 'blue' : 'grape'}>{slotLabel(c.slot)}</Badge>}
+          {(title || g.label === g.name) && c.slot === 1 ? null : <Badge variant="outline" size="sm" color={c.slot === 1 ? 'blue' : c.free ? 'gray' : 'grape'}>{slotLabel(c)}</Badge>}
           {c.branch && (title || c.branch !== g.branch) && <Branch name={c.branch} issueUrl={c.issueUrl} />}
         </Group>
         <Group gap={4} wrap="nowrap">
