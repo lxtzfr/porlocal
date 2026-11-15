@@ -30,12 +30,15 @@ describe('findZombies', () => {
     [50, 90, 'cmd.exe', 'cmd.exe /d /s /c "pnpm start:dev"'],
     [51, 50, 'node.exe', String.raw`node C:\Git\ws\server\dist\main`],
     [90, 1, 'node.exe', 'node porlocal/dist/daemon/main.js'],
+    // Another porlocal daemon (a test one, a slot's build) and what it launched, run from a known checkout.
+    [70, 1, 'node.exe', String.raw`"C:\Program Files\nodejs\node.exe" C:\Git\ws\porlocal\dist\daemon\main.js`],
+    [71, 70, 'node.exe', String.raw`node C:\Git\ws\web\node_modules\vite\bin\vite.js dev --port 4100`],
     // Elsewhere on the machine: not porlocal's business.
     [60, 999, 'node.exe', String.raw`node C:\other\app.js`],
   ])
-  const listening = new Map([[5, [55000]], [11, [3000]], [20, [3010]], [51, [3001]], [60, [8080]], [90, [4780]]])
+  const listening = new Map([[5, [55000]], [11, [3000]], [20, [3010]], [51, [3001]], [60, [8080]], [90, [4780]], [70, [4790]], [71, [4100]]])
 
-  it('lists what runs from known checkouts outside porlocal, not porlocal, IDEs, helpers or other folders', () => {
+  it('lists what runs from known checkouts outside porlocal, not any porlocal daemon, IDEs, helpers or other folders', () => {
     const z = findZombies(state, t, listening, [90], repo)
     expect(z.map((p) => [p.pid, p.checkout, p.ports, p.orphan])).toEqual([
       [20, 'C:/Git/ws.wt/web-2', [3010], true],

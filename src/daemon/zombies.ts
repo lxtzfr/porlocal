@@ -6,6 +6,9 @@ import type { State, Zombie } from '../api.js'
 // Apps that run from a checkout without being a dev server left behind (Unity's -projectPath, an IDE's folder).
 const APPS = /^(code|code - insiders|cursor|claude|unity|unity hub|idea64|webstorm64|rider64|devenv|explorer|windowsterminal)(\.exe)?$/i
 
+// Any porlocal daemon (another PORLOCAL_HOME, a slot's build): it and what it launched are porlocal's, not zombies.
+const DAEMON = /porlocal[^"\s]*[\\/]dist[\\/]daemon[\\/]main\.js/i
+
 const isRepo = (path: string) => existsSync(join(path, '.git'))
 
 /**
@@ -22,8 +25,9 @@ export function findZombies(state: State, table: Map<number, ProcInfo>, listenin
   }
   const managed = new Set(state.processes.filter((p) => p.status === 'starting' || p.status === 'ready').map((p) => p.pid))
   // A managed PID can be a wrapper (`cmd /c`) or, re-adopted, the port holder under it: both its tree and its chain.
+  // A process under any porlocal daemon is skipped too.
   const related = (pid: number) => {
-    for (let p = table.get(pid), depth = 0; p && depth < 30; p = table.get(p.ppid), depth++) if (managed.has(p.pid) || self.includes(p.pid)) return true
+    for (let p = table.get(pid), depth = 0; p && depth < 30; p = table.get(p.ppid), depth++) if (managed.has(p.pid) || self.includes(p.pid) || DAEMON.test(p.cmd)) return true
     return false
   }
   const checkoutOf = (proc: ProcInfo): string | null => {
