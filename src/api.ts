@@ -62,6 +62,34 @@ export interface Zombie {
   orphan: boolean
 }
 
+/** Who listens on a port: a process porlocal runs (its id), one of Outside porlocal (started by hand), any other app. */
+export type PortHolder =
+  | { kind: 'porlocal'; id: string; pid: number }
+  | { kind: 'zombie'; pid: number; name: string; cmd: string; checkout: string }
+  | { kind: 'other'; pid: number; name: string; cmd: string }
+
+/**
+ * ok: its service on it under porlocal; free: nothing on it; moved: the declared port was taken, the service got
+ * `movedTo`; hand: a dev process of a checkout, outside porlocal; conflict: another service or app holds it.
+ */
+export type PortStatus = 'ok' | 'free' | 'moved' | 'hand' | 'conflict'
+
+/** A port of the projects porlocal knows: leased or declared, run by it, or held by one of their dev processes. */
+export interface ProjectPort {
+  port: number
+  status: PortStatus
+  /** The service that has this port (leased, or declared before it moved). */
+  expected?: { workspace: string; service: string }
+  movedTo?: number
+  holder: PortHolder | null
+}
+
+/** What the daemon reads of the machine (one process table + port scan): `/api/events` `machine`. */
+export interface MachineResponse {
+  zombies: Zombie[]
+  ports: ProjectPort[]
+}
+
 export interface StateResponse {
   processes: (Managed & { ownerAlive: boolean | null })[]
   leases: Lease[]

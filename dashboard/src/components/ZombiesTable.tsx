@@ -1,22 +1,11 @@
-import { Badge, Button, Group, Table, Text, Tooltip } from '@mantine/core'
-import { modals } from '@mantine/modals'
-import { IconSkull } from '@tabler/icons-react'
+import { Badge, Group, Table, Text, Tooltip } from '@mantine/core'
 import type { Zombie } from '../../../src/api'
-import { useKill } from '../api'
 import { Path, PortLink } from './cells'
+import { KillButton } from './KillButton'
 import { Empty } from './Section'
 
 export function ZombiesTable({ zombies }: { zombies: Zombie[] }) {
-  const kill = useKill()
   if (!zombies.length) return <Empty>None: every dev process of these checkouts runs under porlocal.</Empty>
-  const confirm = (z: Zombie) =>
-    modals.openConfirmModal({
-      title: `Kill PID ${z.pid}?`,
-      children: <Text size="sm">{z.name} in {z.checkout}, and its whole process tree.</Text>,
-      labels: { confirm: 'Kill', cancel: 'Cancel' },
-      confirmProps: { color: 'red' },
-      onConfirm: () => kill.mutate(z.pid),
-    })
   return (
     <Table.ScrollContainer minWidth={900}>
       <Table highlightOnHover verticalSpacing={6}>
@@ -45,10 +34,7 @@ export function ZombiesTable({ zombies }: { zombies: Zombie[] }) {
               <Table.Td><Path value={z.checkout} /></Table.Td>
               <Table.Td><Path value={z.cmd} max={360} /></Table.Td>
               <Table.Td>
-                <Button size="compact-xs" variant="light" color="red" leftSection={<IconSkull size={14} />}
-                  loading={kill.isPending && kill.variables === z.pid} onClick={() => confirm(z)}>
-                  kill
-                </Button>
+                <KillButton pid={z.pid} name={z.name} checkout={z.checkout} />
               </Table.Td>
             </Table.Tr>
           ))}

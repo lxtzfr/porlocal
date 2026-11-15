@@ -1,7 +1,7 @@
 import { notifications } from '@mantine/notifications'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
-import type { Managed, StateResponse, Zombie } from '../../src/api'
+import type { MachineResponse, Managed, StateResponse, Zombie } from '../../src/api'
 
 export class ApiError extends Error {}
 
@@ -15,7 +15,13 @@ export async function call<T>(path: string, body?: unknown): Promise<T> {
 // The daemon pushes both over /api/events (useEvents): the queries only hold what it last sent.
 const pushed = { staleTime: Infinity, refetchOnWindowFocus: false } as const
 export const useDaemonState = () => useQuery({ queryKey: ['state'], queryFn: () => call<StateResponse>('/api/state'), ...pushed })
-export const useZombies = () => useQuery({ queryKey: ['zombies'], queryFn: () => call<Zombie[]>('/api/zombies'), ...pushed })
+// One snapshot for Outside porlocal and the ports page: the daemon reads the machine once for both.
+export const useMachine = () =>
+  useQuery({
+    queryKey: ['machine'],
+    queryFn: async (): Promise<MachineResponse> => ({ zombies: await call<Zombie[]>('/api/zombies'), ports: await call('/api/ports') }),
+    ...pushed,
+  })
 
 /** Feeds the query cache from the daemon's event stream; false while it is unreachable (EventSource retries alone). */
 export function useEvents(): boolean {
@@ -25,7 +31,7 @@ export function useEvents(): boolean {
     const source = new EventSource('/api/events')
     source.onopen = () => setLive(true)
     source.onerror = () => setLive(false)
-    for (const key of ['state', 'zombies']) {
+    for (const key of ['state', 'machine']) {
       source.addEventListener(key, (e) => client.setQueryData([key], JSON.parse((e as MessageEvent).data)))
     }
     return () => source.close()

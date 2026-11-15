@@ -1,12 +1,13 @@
 #!/usr/bin/env node
 import { autostartStatus, disableAutostart, enableAutostart } from './autostart.js'
 import { api, ApiError, daemonUp, ensureDaemon, ensureTray, stopDaemon, stopTray, streamEvents, trayPid } from './client.js'
+import { basename } from 'node:path'
 import { openUrl } from './opener.js'
 import { trayHostSupported } from './tray/host.js'
 import { DAEMON_LOG, DAEMON_URL, TRAY_LOG } from './paths.js'
 import { readMsysParents } from './procs.js'
 import { resolveWorkspace, workspaceLabel } from './workspace.js'
-import type { Lease, Managed, StateResponse, Zombie } from './api.js'
+import type { Lease, Managed, ProjectPort, StateResponse, Zombie } from './api.js'
 
 const USAGE = `porlocal: leases ports, supervises dev servers, maps device ports (optional: projects run without it)
 
@@ -15,6 +16,7 @@ const USAGE = `porlocal: leases ports, supervises dev servers, maps device ports
   porlocal ls [--json]                 processes, ports, owners
   porlocal stop|restart|keep|forget <service|id>      keep: no owner any more (runs until stopped)
   porlocal logs <service|id> [-f] [-n <lines>]
+  porlocal ports [<port>] [--json]     the projects' ports: ok, free, moved, started by hand, taken by another app
   porlocal zombies [--json] | kill <pid>  dev processes of these checkouts not run by porlocal (a pnpm dev by hand, left over)
   porlocal lease <service> [--new-port] | release <service>
   porlocal device bind <service|repo/service> --port <device port> [--device <serial>]
@@ -174,6 +176,24 @@ async function main(): Promise<void> {
     case 'forget': {
       const result = await api<Managed | null>(`/api/${command}`, { id: toId(sub) })
       return console.log(result && command !== 'forget' ? describe(result) : `${toId(sub)}: ${command}`)
+    }
+    case 'ports': {
+      const all = await api<ProjectPort[]>('/api/ports')
+      const ports = sub ? all.filter((p) => p.port === Number(sub)) : all
+      if (args.flags.json) return console.log(JSON.stringify(ports, null, 2))
+      if (!ports.length) return console.log(sub ? `${sub} is no port of the known projects` : 'no project port yet (porlocal run / lease)')
+      const holder = (p: ProjectPort) => (!p.holder ? '-' : p.holder.kind === 'porlocal' ? `porlocal ${p.holder.id}` : `${p.holder.name} (PID ${p.holder.pid})`)
+      printTable([
+        ['port', 'status', 'service', 'held by', 'command'],
+        ...ports.map((p) => [
+          String(p.port),
+          p.status === 'moved' ? `moved -> ${p.movedTo}` : p.status,
+          p.expected ? `${basename(p.expected.workspace)}/${p.expected.service}` : '',
+          holder(p),
+          p.holder && p.holder.kind !== 'porlocal' ? p.holder.cmd.slice(0, 60) : '',
+        ]),
+      ])
+      return
     }
     case 'zombies': {
       const zombies = await api<Zombie[]>('/api/zombies')
