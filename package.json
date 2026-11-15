@@ -17,7 +17,7 @@
     "dashboard:dev": "cd dashboard && vite dev",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p dashboard/tsconfig.json",
     "test": "vitest run",
-    "wt": "node scripts/my-stack/wt/bin/wt.mjs"
+    "wt": "wt"
   },
   "engines": {
     "node": ">=22"

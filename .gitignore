@@ -11,12 +11,6 @@ dist/
 /claude/my-stack/core/services.md
 /claude/my-stack/core/tickets.md
 /claude/my-stack/core/worktrees.md
-/scripts/my-stack/wt/bin/wt.mjs
-/scripts/my-stack/wt/lib/issue.mjs
-/scripts/my-stack/wt/lib/run.mjs
-/scripts/my-stack/wt/lib/services.mjs
-/scripts/my-stack/wt/lib/setup.mjs
-/scripts/my-stack/wt/lib/slots.mjs
 # my-stack:local:end
 
 # my-stack:core:.gitignore:start
