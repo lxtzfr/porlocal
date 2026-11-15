@@ -4,13 +4,14 @@ import { DAEMON_PORT } from '../paths.js'
 import { listeningPorts } from '../ports.js'
 import { isAlive, killTree, processTable } from '../procs.js'
 import { refTarget, resolveWorkspace } from '../workspace.js'
-import type { StateResponse } from '../api.js'
+import type { MachineResponse, StateResponse } from '../api.js'
 import type { Adb } from './adb.js'
 import { eventStream, Feed } from './events.js'
 import { followLog, tailText } from './logTail.js'
 import { dashboardFile } from './static.js'
 import { Supervisor, UserError, type RunRequest } from './supervisor.js'
 import { findZombies } from './zombies.js'
+import { machinePorts } from './machinePorts.js'
 
 export const VERSION = '0.1.0'
 
@@ -30,7 +31,14 @@ function readBody(req: IncomingMessage): Promise<any> {
 }
 
 export function startServer(sup: Supervisor, adb: Adb, log: Logger, shutdown: () => void) {
-  const zombies = () => findZombies(sup.state, processTable(), listeningPorts(), [process.pid])
+  // One process table + port scan for both views: the table alone takes a PowerShell call on Windows.
+  const machine = (): MachineResponse => {
+    const table = processTable()
+    const listening = listeningPorts()
+    const zombies = findZombies(sup.state, table, listening, [process.pid])
+    return { zombies, ports: machinePorts(sup.state, table, listening, zombies) }
+  }
+  const zombies = () => machine().zombies
   const state = (): StateResponse => ({
     processes: sup.state.processes.map((p) => ({ ...p, ownerAlive: p.owner ? isAlive(p.owner.pid) : null })),
     leases: sup.state.leases,
@@ -38,8 +46,8 @@ export function startServer(sup: Supervisor, adb: Adb, log: Logger, shutdown: ()
     devices: [...adb.devices],
     adb: adb.available,
   })
-  // Zombies are slower: the whole process table is read.
-  const feeds = { state: new Feed('state', state, 1000, log), zombies: new Feed('zombies', zombies, 5000, log) }
+  // The machine is slower: the whole process table is read.
+  const feeds = { state: new Feed('state', state, 1000, log), machine: new Feed('machine', machine, 5000, log) }
   const findProcess = (url: URL) => {
     const p = sup.find(url.searchParams.get('id') ?? '')
     if (!p) throw new UserError('unknown process')
@@ -49,7 +57,7 @@ export function startServer(sup: Supervisor, adb: Adb, log: Logger, shutdown: ()
     '/api/events': (_, res) => {
       const s = eventStream(res)
       feeds.state.add(s)
-      feeds.zombies.add(s)
+      feeds.machine.add(s)
     },
     '/api/logs/stream': (_, res, url) => {
       const p = findProcess(url)
@@ -77,6 +85,7 @@ export function startServer(sup: Supervisor, adb: Adb, log: Logger, shutdown: ()
       return { id: p.id, text: tailText(p.logFile, Number(url.searchParams.get('tail') ?? 200)) }
     },
     'GET /api/zombies': () => zombies(),
+    'GET /api/ports': () => machine().ports,
     // Only a PID listed as a zombie right now: never a way to kill any process by number.
     'POST /api/kill': (body) => {
       const z = zombies().find((x) => x.pid === Number(body.pid))

@@ -25,6 +25,13 @@ export function processTable(): Map<number, ProcInfo> {
   return table
 }
 
+/** `pid` then its parents, up to `max` (a PID reused as its own ancestor ends it). */
+export function ancestry(table: Map<number, ProcInfo>, pid: number, max = 30): ProcInfo[] {
+  const chain: ProcInfo[] = []
+  for (let p = table.get(pid); p && chain.length < max && !chain.includes(p); p = table.get(p.ppid)) chain.push(p)
+  return chain
+}
+
 /**
  * Git Bash (MSYS): a fork + exec leaves the Windows parent PID of the exec'd process pointing at a process gone, which
  * cuts the chain to the session. MSYS `ps` still links them: Windows PID -> its MSYS parent's Windows PID.

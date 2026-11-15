@@ -62,6 +62,27 @@ export interface Zombie {
   orphan: boolean
 }
 
+/** Who holds a listening port: a process porlocal runs (its id), one of Outside porlocal, or anything else. */
+export type PortHolderKind = { kind: 'porlocal'; id: string } | { kind: 'zombie' } | { kind: 'other' }
+
+export interface MachinePort {
+  port: number
+  pid: number
+  name: string
+  cmd: string
+  holder: PortHolderKind
+  /** Hidden unless asked: below 1024, the ephemeral range, OS processes. */
+  system: boolean
+  /** Leases whose declared port this is, held by something else. */
+  wantedBy: { workspace: string; service: string }[]
+}
+
+/** What the daemon reads of the machine (one process table + port scan): `/api/events` `machine`. */
+export interface MachineResponse {
+  zombies: Zombie[]
+  ports: MachinePort[]
+}
+
 export interface StateResponse {
   processes: (Managed & { ownerAlive: boolean | null })[]
   leases: Lease[]
