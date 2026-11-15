@@ -1,7 +1,6 @@
-import { ActionIcon, Badge, Button, Group, Text, Title, Tooltip, useComputedColorScheme, useMantineColorScheme } from '@mantine/core'
-import { IconLayoutDashboard, IconMoon, IconPlugConnected, IconSun } from '@tabler/icons-react'
-import { Link, useLocation } from '@tanstack/react-router'
-import { useDaemonState, useMachine } from '../api'
+import { ActionIcon, Badge, Group, Text, Title, Tooltip, useComputedColorScheme, useMantineColorScheme } from '@mantine/core'
+import { IconMoon, IconSun } from '@tabler/icons-react'
+import { useDaemonState } from '../api'
 import { isRunning } from '../format'
 
 function ThemeToggle() {
@@ -18,16 +17,7 @@ function ThemeToggle() {
 
 export function AppHeader({ live }: { live: boolean }) {
   const state = useDaemonState()
-  const machine = useMachine()
-  const path = useLocation({ select: (l) => l.pathname })
   const s = state.data
-  const devPorts = machine.data?.ports.filter((p) => !p.system).length
-  const conflicts = machine.data?.ports.filter((p) => p.wantedBy.length).length ?? 0
-  const nav = (to: '/' | '/ports', label: string, icon: React.ReactNode, extra?: React.ReactNode) => (
-    <Button component={Link} to={to} size="xs" variant={path === to ? 'light' : 'subtle'} leftSection={icon} rightSection={extra}>
-      {label}
-    </Button>
-  )
   return (
     <Group justify="space-between" mb="md">
       <Group gap="sm" align="center">
@@ -39,12 +29,7 @@ export function AppHeader({ live }: { live: boolean }) {
           </Text>
         )}
       </Group>
-      <Group gap="xs">
-        {nav('/', 'Dashboard', <IconLayoutDashboard size={16} />)}
-        {nav('/ports', 'Ports', <IconPlugConnected size={16} />,
-          devPorts !== undefined && <Badge size="xs" variant="light" color={conflicts ? 'red' : 'gray'}>{conflicts ? `${conflicts} conflict` : devPorts}</Badge>)}
-        <ThemeToggle />
-      </Group>
+      <ThemeToggle />
     </Group>
   )
 }

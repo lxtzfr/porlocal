@@ -18,8 +18,8 @@ same `.env.local` block my-stack's `wt env` writes (contract: `src/envLocal.ts`,
 - `src/cli.ts` (CLI, talks HTTP to the daemon, starts it detached on demand: `client.ts`; login start: `autostart.ts`).
 - `src/daemon/`: `main.ts`, `server.ts` (JSON API on 127.0.0.1:4780, SSE streams: `events.ts` feeds, `logTail.ts`;
   the built dashboard via `static.ts`), `supervisor.ts` (leases,
-  processes, owners), `adb.ts` (device bindings), `zombies.ts` (dev processes of known checkouts not run by porlocal), `machinePorts.ts` (every listening port and
-  who holds it; one machine snapshot feeds both), `state.ts` (`~/.porlocal/state.json`, logs in `~/.porlocal/logs/`).
+  processes, owners), `adb.ts` (device bindings), `zombies.ts` (dev processes of known checkouts not run by porlocal), `projectPorts.ts` (the projects' ports, their
+  status and who holds them; one machine snapshot feeds both), `state.ts` (`~/.porlocal/state.json`, logs in `~/.porlocal/logs/`).
 - `src/tray/`: `main.ts` (`porlocal tray`, detached, outlives the daemon, fed by `/api/events`), `view.ts` (icon, menu,
   balloons: all the logic), `host.ts` + `windowsHost.ts` (a PowerShell NotifyIcon that only displays: JSON lines in,
   `click <id>` out; another OS = another host, no dependency).

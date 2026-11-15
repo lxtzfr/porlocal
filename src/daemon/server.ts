@@ -11,7 +11,7 @@ import { followLog, tailText } from './logTail.js'
 import { dashboardFile } from './static.js'
 import { Supervisor, UserError, type RunRequest } from './supervisor.js'
 import { findZombies } from './zombies.js'
-import { machinePorts } from './machinePorts.js'
+import { projectPorts } from './projectPorts.js'
 
 export const VERSION = '0.1.0'
 
@@ -36,7 +36,7 @@ export function startServer(sup: Supervisor, adb: Adb, log: Logger, shutdown: ()
     const table = processTable()
     const listening = listeningPorts()
     const zombies = findZombies(sup.state, table, listening, [process.pid])
-    return { zombies, ports: machinePorts(sup.state, table, listening, zombies) }
+    return { zombies, ports: projectPorts(sup.state, table, listening, zombies) }
   }
   const zombies = () => machine().zombies
   const state = (): StateResponse => ({
