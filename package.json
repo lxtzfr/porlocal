@@ -1,0 +1,34 @@
+{
+  "name": "porlocal",
+  "version": "0.1.0",
+  "description": "Local dev helper: leases ports, supervises dev servers, maps device ports, shows it all in a dashboard",
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "porlocal": "dist/cli.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsc -p tsconfig.json --watch",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "wt": "node scripts/my-stack/wt/bin/wt.mjs"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "packageManager": "pnpm@10.33.2",
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "typescript": "^5.7.0",
+    "vitest": "^3.2.0"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild"
+    ]
+  }
+}

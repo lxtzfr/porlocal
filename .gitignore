@@ -8,11 +8,13 @@ dist/
 /claude/my-stack/core/CLAUDE.md
 /claude/my-stack/core/my-stack.md
 /claude/my-stack/core/sentry.md
+/claude/my-stack/core/services.md
 /claude/my-stack/core/tickets.md
 /claude/my-stack/core/worktrees.md
 /scripts/my-stack/wt/bin/wt.mjs
 /scripts/my-stack/wt/lib/issue.mjs
 /scripts/my-stack/wt/lib/run.mjs
+/scripts/my-stack/wt/lib/services.mjs
 /scripts/my-stack/wt/lib/setup.mjs
 /scripts/my-stack/wt/lib/slots.mjs
 # my-stack:local:end
@@ -24,4 +26,7 @@ dist/
 .idea/
 .vs/
 .fleet/
+
+# Ports, links and slot database of this checkout, generated (`pnpm wt env`, a port supervisor): never committed
+.env.local
 # my-stack:core:.gitignore:end
