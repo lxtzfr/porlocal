@@ -3,6 +3,7 @@ import { mkdirSync, openSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { DAEMON_LOG, DAEMON_URL, HOME } from './paths.js'
+import { isAlive } from './procs.js'
 
 export class ApiError extends Error {}
 
@@ -22,6 +23,24 @@ export async function daemonUp(): Promise<boolean> {
   }
 }
 
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
+
+/** Stops the daemon and returns once its process is gone (so a `start` right after starts a new one); null: none ran. */
+export async function stopDaemon(): Promise<number | null> {
+  let pid: number | undefined
+  try {
+    // A daemon older than this CLI answers no PID: then only its health check going down tells.
+    pid = (await api<{ pid?: number }>('/api/shutdown', {})).pid
+  } catch {
+    return null
+  }
+  for (let i = 0; i < 100; i++) {
+    if ((pid === undefined || !isAlive(pid)) && !(await daemonUp())) return pid ?? 0
+    await sleep(50)
+  }
+  throw new ApiError(`the daemon${pid ? ` (PID ${pid})` : ''} did not exit within 5 s: see ${DAEMON_LOG}`)
+}
+
 // Detached so it outlives the shell that started it (a Claude Code tool call, a terminal tab).
 export async function ensureDaemon(): Promise<void> {
   if (await daemonUp()) return
@@ -30,7 +49,7 @@ export async function ensureDaemon(): Promise<void> {
   const main = join(dirname(fileURLToPath(import.meta.url)), 'daemon', 'main.js')
   spawn(process.execPath, [main], { detached: true, stdio: ['ignore', out, out], windowsHide: true }).unref()
   for (let i = 0; i < 50; i++) {
-    await new Promise((r) => setTimeout(r, 100))
+    await sleep(100)
     if (await daemonUp()) return
   }
   throw new ApiError(`the daemon did not start: see ${DAEMON_LOG}`)
