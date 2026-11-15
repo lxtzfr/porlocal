@@ -30,7 +30,7 @@ export function CheckoutActions({ c }: { c: Checkout }) {
           </ActionIcon>
         </Tooltip>
       )}
-      {c.slot !== null && c.slot >= 2 && c.branch && (
+      {c.slotActions && c.branch && (
         <Menu position="bottom-end" withinPortal>
           <Menu.Target>
             <ActionIcon variant="subtle" size="sm" loading={action.isPending && action.variables?.action !== 'env'} aria-label="Slot actions">

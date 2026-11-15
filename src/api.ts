@@ -108,6 +108,8 @@ export interface Checkout {
   repo: string
   /** 1 = the main checkout, n = slot n, null = a checkout outside the slot layout. */
   slot: number | null
+  /** A slot whose repo runs wt: it can be freed or merged from the dashboard. */
+  slotActions: boolean
   label: string
   /** `origin` as `lxtzfr/website` and its web page; null without one (or a host not served over https). */
   remote: { slug: string; url: string } | null

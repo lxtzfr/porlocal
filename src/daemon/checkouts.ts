@@ -3,6 +3,7 @@ import type { Checkout, CheckoutLink, LinkStatus, State, Zombie } from '../api.j
 import { envRefs, readBlock, resolveEnv } from '../envLocal.js'
 import { currentBranch, issueUrl, remoteOf, remoteWebUrl } from '../gitInfo.js'
 import { preferredPort, siblingCheckouts, workspaceLabel, type Workspace } from '../workspace.js'
+import { hasSlotActions } from './wtActions.js'
 
 export interface CheckoutsInput {
   state: State
@@ -50,7 +51,7 @@ export function checkouts({ state, zombies, listening, workspace }: CheckoutsInp
     const ws = workspace(path)
     const branch = currentBranch(path)
     const web = remoteWebUrl(ws.main)
-    return { path, repo: ws.repo, slot: ws.n, label: workspaceLabel(ws), remote: remoteOf(web), branch, issueUrl: issueUrl(branch, web), uses: linksOf(ws), usedBy: [] } as Checkout
+    return { path, repo: ws.repo, slot: ws.n, slotActions: hasSlotActions(ws), label: workspaceLabel(ws), remote: remoteOf(web), branch, issueUrl: issueUrl(branch, web), uses: linksOf(ws), usedBy: [] } as Checkout
   })
   const byPath = new Map(list.map((c) => [c.path, c]))
   for (const c of list) {

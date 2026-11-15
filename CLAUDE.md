@@ -22,7 +22,7 @@ same `.env.local` block `wt env` writes. The slot layout, links, services and th
   processes, owners), `adb.ts` (device bindings), `zombies.ts` (dev processes of known checkouts not run by porlocal), `projectPorts.ts` (the projects' ports, their
   status and who holds them), `checkouts.ts` (known checkouts, their branch, their links: `.env.local` stale or target
   down), `projectGroups.ts` (linked checkouts grouped, the project named; one machine snapshot feeds them all), `wtActions.ts`
-  (a slot's `free` / `done`: the repo's own `pnpm wt`, run in its main checkout), `state.ts` (`~/.porlocal/state.json`, logs in `~/.porlocal/logs/`).
+  (a slot's `free` / `done`: the repo's own `pnpm wt`, run in its main checkout; a repo without a `wt` script: none), `state.ts` (`~/.porlocal/state.json`, logs in `~/.porlocal/logs/`).
 - `src/tray/`: `main.ts` (`porlocal tray`, detached, outlives the daemon, fed by `/api/events`), `view.ts` (icon, menu,
   balloons: all the logic), `host.ts` + `windowsHost.ts` (a PowerShell NotifyIcon that only displays: JSON lines in,
   `click <id>` out; another OS = another host, no dependency).
