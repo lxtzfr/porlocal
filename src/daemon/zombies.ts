@@ -1,6 +1,6 @@
 import { existsSync } from 'node:fs'
 import { dirname, join } from 'node:path'
-import { ancestry, type ProcInfo } from '../procs.js'
+import { ancestry, isInteractiveShell, type ProcInfo } from '../procs.js'
 import type { State, Zombie } from '../api.js'
 
 // Apps that run from a checkout without being a dev server left behind (Unity's -projectPath, an IDE's folder).
@@ -42,14 +42,27 @@ export function findZombies(state: State, table: Map<number, ProcInfo>, listenin
     return null
   }
 
+  // Up through what the dev command spawned (`cmd /c`, pnpm, a watcher), never into a terminal, an app or the system:
+  // killing only the server leaves a watcher that starts it again.
+  const rootOf = (proc: ProcInfo): ProcInfo => {
+    let top = proc
+    for (let parent = table.get(top.ppid); parent && parent.pid > 4 && parent !== top; parent = table.get(top.ppid)) {
+      if (APPS.test(parent.name) || isInteractiveShell(parent)) break
+      top = parent
+    }
+    return top
+  }
+
   const zombies: Zombie[] = []
   for (const p of table.values()) {
     if (APPS.test(p.name) || related(p.pid)) continue
     const ports = (listening.get(p.pid) ?? []).sort((a, b) => a - b)
-    const orphan = !table.has(p.ppid)
-    if (!ports.length && !orphan) continue
+    const root = rootOf(p)
+    const orphan = !table.has(root.ppid)
+    // One row per tree: what listens, else the orphaned top itself.
+    if (!ports.length && !(orphan && root === p)) continue
     const checkout = checkoutOf(p)
-    if (checkout) zombies.push({ pid: p.pid, name: p.name, cmd: p.cmd, ports, checkout, orphan })
+    if (checkout) zombies.push({ pid: p.pid, name: p.name, cmd: p.cmd, ports, checkout, root: root.pid, orphan })
   }
   return zombies.sort((a, b) => a.checkout.localeCompare(b.checkout) || a.pid - b.pid)
 }

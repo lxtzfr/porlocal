@@ -238,13 +238,13 @@ async function main(): Promise<void> {
       const zombies = await api<Zombie[]>('/api/zombies')
       if (args.flags.json) return console.log(JSON.stringify(zombies, null, 2))
       if (!zombies.length) return console.log('none: every dev process of these checkouts runs under porlocal')
-      printTable([['pid', 'name', 'ports', 'orphan', 'checkout', 'command'], ...zombies.map((z) => [String(z.pid), z.name, z.ports.join(' ') || '-', z.orphan ? 'yes' : '', z.checkout, z.cmd.slice(0, 80)])])
+      printTable([['pid', 'tree', 'name', 'ports', 'orphan', 'checkout', 'command'], ...zombies.map((z) => [String(z.pid), z.root === z.pid ? '' : `from ${z.root}`, z.name, z.ports.join(' ') || '-', z.orphan ? 'yes' : '', z.checkout, z.cmd.slice(0, 80)])])
       return console.log('\nporlocal kill <pid> stops one (its whole tree)')
     }
     case 'kill': {
       if (!sub) fail('porlocal kill <pid>   (a PID listed by porlocal zombies)')
       const z = await api<Zombie>('/api/kill', { pid: Number(sub) })
-      return console.log(`killed PID ${z.pid} (${z.name}, ${z.checkout})`)
+      return console.log(`killed PID ${z.pid}${z.root === z.pid ? '' : ` and its tree from PID ${z.root}`} (${z.name}, ${z.checkout})`)
     }
     case 'logs': {
       const id = toId(sub)

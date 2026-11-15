@@ -58,7 +58,9 @@ export interface Zombie {
   ports: number[]
   /** The checkout its command line (or an ancestor's) runs from. */
   checkout: string
-  /** Its parent is gone: a terminal or a launcher closed under it. */
+  /** The top of its dev tree (`pnpm start:dev` above a watcher above the server): what a kill stops, the whole tree. */
+  root: number
+  /** That root's parent is gone: a terminal or a launcher closed under it. */
   orphan: boolean
 }
 

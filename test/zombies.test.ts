@@ -36,16 +36,27 @@ describe('findZombies', () => {
     // The tray, its CLI parent gone (orphan), and its PowerShell host.
     [80, 999, 'node.exe', String.raw`node C:\Git\ws\porlocal\dist\tray\main.js`],
     [81, 80, 'powershell.exe', String.raw`powershell.exe -File C:\Git\ws\web\tray-host.ps1`],
+    // A watcher whose launcher is gone: pnpm -> cmd /c -> nest --watch -> cmd /c -> the server on the port.
+    [40, 998, 'pnpm.exe', 'pnpm.exe start:dev'],
+    [41, 40, 'cmd.exe', 'cmd.exe /d /s /c nest start --watch'],
+    [42, 41, 'node.exe', String.raw`node C:\Git\ws\web
+ode_modules\@nestjs\cliin
+est.js start --watch`],
+    [43, 42, 'cmd.exe', String.raw`cmd.exe /d /s /c "node C:\Git\ws\web\dist\main"`],
+    [44, 43, 'node.exe', String.raw`node C:\Git\ws\web\dist\main`],
     // Elsewhere on the machine: not porlocal's business.
     [60, 999, 'node.exe', String.raw`node C:\other\app.js`],
   ])
-  const listening = new Map([[5, [55000]], [11, [3000]], [20, [3010]], [51, [3001]], [60, [8080]], [90, [4780]], [70, [4790]], [71, [4100]]])
+  const listening = new Map([[5, [55000]], [11, [3000]], [20, [3010]], [51, [3001]], [60, [8080]], [90, [4780]], [70, [4790]], [71, [4100]], [44, [3020]]])
 
   it('lists what runs from known checkouts outside porlocal, not any porlocal daemon, IDEs, helpers or other folders', () => {
     const z = findZombies(state, t, listening, [90], repo)
-    expect(z.map((p) => [p.pid, p.checkout, p.ports, p.orphan])).toEqual([
-      [20, 'C:/Git/ws.wt/web-2', [3010], true],
-      [11, 'C:/Git/ws/web', [3000], false],
+    expect(z.map((p) => [p.pid, p.root, p.checkout, p.ports, p.orphan])).toEqual([
+      [20, 20, 'C:/Git/ws.wt/web-2', [3010], true],
+      // Up to the terminal's shell, never into it.
+      [11, 11, 'C:/Git/ws/web', [3000], false],
+      // The server under a watcher: killed from the top of its tree, orphan through it.
+      [44, 40, 'C:/Git/ws/web', [3020], true],
     ])
   })
 })
