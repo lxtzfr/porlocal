@@ -23,7 +23,7 @@ export function checkouts({ state, zombies, listening, workspace }: CheckoutsInp
 
   const known = new Set([...state.leases, ...state.processes, ...state.bindings].map((x) => x.workspace))
   for (const z of zombies) known.add(z.checkout)
-  // A free slot still points at the main checkouts: shown for what runs there, never as a link target or a sibling.
+  // A free slot still points at the main checkouts: listed as a slot of the project, never as a link target.
   const isFree = (path: string) => {
     const ws = workspace(path)
     return ws.n !== null && ws.n >= 2 && detachedHead(path)
@@ -34,7 +34,8 @@ export function checkouts({ state, zombies, listening, workspace }: CheckoutsInp
     const ws = workspace(path)
     for (const r of envRefs(ws)) if (existsSync(r.workspace) && !isFree(r.workspace)) paths.add(r.workspace)
     for (const sibling of siblingCheckouts(ws)) {
-      if (!paths.has(sibling) && !isFree(sibling) && envRefs(workspace(sibling)).some((r) => known.has(r.workspace))) paths.add(sibling)
+      if (paths.has(sibling)) continue
+      if (isFree(sibling) || envRefs(workspace(sibling)).some((r) => known.has(r.workspace))) paths.add(sibling)
     }
   }
 

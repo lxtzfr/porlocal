@@ -16,12 +16,12 @@ export function projectName(dir: string): string {
   return basename(dir)
 }
 
-const slotPart = (c: Checkout) => (c.free ? `${c.label} (free)` : c.slot === 1 ? 'main' : c.slot ? `slot ${c.slot}` : c.label)
+const slotPart = (c: Checkout) => (c.free ? 'free slots' : c.slot === 1 ? 'main' : c.slot ? `slot ${c.slot}` : c.label)
 
 /**
  * The checkouts linked together (by their env, either way) form a group: the main checkouts of a project, the slots of
  * a ticket over several repos, a solo repo. From the links, not the slot numbers: `wt link` can tie `web-2` to `server-3`.
- * A free slot stands alone: its links back to the main checkouts tie it to no ticket.
+ * A free slot joins no ticket through its links back to the main checkouts: a project's free slots form one group.
  */
 export function projectGroups(checkouts: Checkout[], mainOf: (path: string) => string): ProjectGroup[] {
   const parent = new Map(checkouts.map((c) => [c.path, c.path]))
@@ -33,6 +33,12 @@ export function projectGroups(checkouts: Checkout[], mainOf: (path: string) => s
     return root
   }
   const free = new Set(checkouts.filter((c) => c.free).map((c) => c.path))
+  const freeOf = new Map<string, string>()
+  for (const path of free) {
+    const project = dirname(mainOf(path))
+    if (freeOf.has(project)) parent.set(find(path), find(freeOf.get(project)!))
+    else freeOf.set(project, path)
+  }
   for (const c of checkouts) {
     if (free.has(c.path)) continue
     for (const l of c.uses) if (parent.has(l.workspace) && !free.has(l.workspace)) parent.set(find(l.workspace), find(c.path))
@@ -61,7 +67,8 @@ export function projectGroups(checkouts: Checkout[], mainOf: (path: string) => s
       branch,
       issueUrl: branch ? list[0]!.issueUrl : null,
       paths: list.map((c) => c.path),
-      order: Math.min(...list.map((c) => c.slot ?? 1000)),
+      // The free slots after the tickets.
+      order: list.every((c) => c.free) ? 2000 : Math.min(...list.map((c) => c.slot ?? 1000)),
     }
   })
   return groups.sort((a, b) => a.name.localeCompare(b.name) || a.order - b.order).map(({ order, ...g }) => g)
