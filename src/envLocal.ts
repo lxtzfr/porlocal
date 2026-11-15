@@ -85,13 +85,14 @@ export function expandCommand(cmd: string, ws: Workspace, port: number, portOf: 
     })
 }
 
+/** Every `{port:<ref>}` / `{url:<ref>}` of `ws`'s env: which key points at which service of which checkout. */
+export function envRefs(ws: Workspace): { key: string; workspace: string; service: string }[] {
+  return Object.entries(ws.env).flatMap(([key, template]) =>
+    [...template.matchAll(PLACEHOLDER)].filter(([, kind, ref]) => kind !== 'database' && ref).map(([, , ref]) => ({ key, ...refTarget(ws, ref!) })),
+  )
+}
+
 /** Does `ws`'s env reference `<repo>/<service>` in the checkout `target`? (a dependent to rewrite on a port change) */
 export function dependsOn(ws: Workspace, target: string, service: string): boolean {
-  return Object.values(ws.env).some((template) =>
-    [...template.matchAll(PLACEHOLDER)].some(([, kind, ref]) => {
-      if (kind === 'database' || !ref) return false
-      const t = refTarget(ws, ref)
-      return t.workspace === target && t.service === service
-    }),
-  )
+  return envRefs(ws).some((r) => r.workspace === target && r.service === service)
 }

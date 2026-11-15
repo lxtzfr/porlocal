@@ -15,13 +15,8 @@ export async function call<T>(path: string, body?: unknown): Promise<T> {
 // The daemon pushes both over /api/events (useEvents): the queries only hold what it last sent.
 const pushed = { staleTime: Infinity, refetchOnWindowFocus: false } as const
 export const useDaemonState = () => useQuery({ queryKey: ['state'], queryFn: () => call<StateResponse>('/api/state'), ...pushed })
-// One snapshot for Outside porlocal and the ports page: the daemon reads the machine once for both.
-export const useMachine = () =>
-  useQuery({
-    queryKey: ['machine'],
-    queryFn: async (): Promise<MachineResponse> => ({ zombies: await call<Zombie[]>('/api/zombies'), ports: await call('/api/ports') }),
-    ...pushed,
-  })
+// One snapshot (zombies, ports, checkouts): the daemon reads the machine once for all.
+export const useMachine = () => useQuery({ queryKey: ['machine'], queryFn: () => call<MachineResponse>('/api/machine'), ...pushed })
 
 /** Feeds the query cache from the daemon's event stream; false while it is unreachable (EventSource retries alone). */
 export function useEvents(): boolean {
