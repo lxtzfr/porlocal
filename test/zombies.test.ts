@@ -33,6 +33,9 @@ describe('findZombies', () => {
     // Another porlocal daemon (a test one, a slot's build) and what it launched, run from a known checkout.
     [70, 1, 'node.exe', String.raw`"C:\Program Files\nodejs\node.exe" C:\Git\ws\porlocal\dist\daemon\main.js`],
     [71, 70, 'node.exe', String.raw`node C:\Git\ws\web\node_modules\vite\bin\vite.js dev --port 4100`],
+    // The tray, its CLI parent gone (orphan), and its PowerShell host.
+    [80, 999, 'node.exe', String.raw`node C:\Git\ws\porlocal\dist\tray\main.js`],
+    [81, 80, 'powershell.exe', String.raw`powershell.exe -File C:\Git\ws\web\tray-host.ps1`],
     // Elsewhere on the machine: not porlocal's business.
     [60, 999, 'node.exe', String.raw`node C:\other\app.js`],
   ])

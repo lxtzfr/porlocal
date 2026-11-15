@@ -1,8 +1,9 @@
 #!/usr/bin/env node
-import { spawn } from 'node:child_process'
 import { autostartStatus, disableAutostart, enableAutostart } from './autostart.js'
-import { api, ApiError, daemonUp, ensureDaemon, stopDaemon, streamEvents } from './client.js'
-import { DAEMON_LOG, DAEMON_URL } from './paths.js'
+import { api, ApiError, daemonUp, ensureDaemon, ensureTray, stopDaemon, stopTray, streamEvents, trayPid } from './client.js'
+import { openUrl } from './opener.js'
+import { trayHostSupported } from './tray/host.js'
+import { DAEMON_LOG, DAEMON_URL, TRAY_LOG } from './paths.js'
 import { readMsysParents } from './procs.js'
 import { resolveWorkspace, workspaceLabel } from './workspace.js'
 import type { Lease, Managed, StateResponse, Zombie } from './api.js'
@@ -18,7 +19,8 @@ const USAGE = `porlocal: leases ports, supervises dev servers, maps device ports
   porlocal lease <service> [--new-port] | release <service>
   porlocal device bind <service|repo/service> --port <device port> [--device <serial>]
   porlocal device unbind --port <device port> [--device <serial>] | device ls
-  porlocal dashboard | daemon start|status|stop | daemon autostart [on|off]   autostart: at Windows login
+  porlocal dashboard | daemon start|status|stop | daemon autostart [on|off]   autostart: daemon + tray at Windows login
+  porlocal tray [status|stop]          notification-area icon: daemon status, dashboard, services (Windows)
 
   <cmd> may use {port}, {url}, {port:<repo>/<service>}, {url:<repo>/<service>}. The owner (default: the terminal,
   IDE or Claude Code session that ran porlocal) dying stops the process after --grace (30 s).`
@@ -124,6 +126,16 @@ async function main(): Promise<void> {
     return console.log(`running at ${DAEMON_URL}`)
   }
 
+  // The tray needs no daemon: it shows it down and starts it from its menu.
+  if (command === 'tray') {
+    const pid = trayPid()
+    if (sub === 'status') return console.log(pid ? `running (PID ${pid}, log: ${TRAY_LOG})` : 'not running')
+    if (sub === 'stop') return console.log(stopTray() ? 'stopped' : 'not running')
+    if (sub) fail('tray [status|stop]')
+    if (!trayHostSupported()) fail(`the tray icon is Windows-only for now (no ${process.platform} host yet)`)
+    return console.log(`tray running (PID ${await ensureTray()})`)
+  }
+
   await ensureDaemon()
   switch (command) {
     case 'run': {
@@ -212,9 +224,7 @@ async function main(): Promise<void> {
     }
     case 'dashboard': {
       console.log(DAEMON_URL)
-      const opener = process.platform === 'win32' ? ['cmd', ['/c', 'start', '', DAEMON_URL]] : process.platform === 'darwin' ? ['open', [DAEMON_URL]] : ['xdg-open', [DAEMON_URL]]
-      spawn(opener[0] as string, opener[1] as string[], { stdio: 'ignore', detached: true, windowsHide: true }).unref()
-      return
+      return openUrl(DAEMON_URL)
     }
     default:
       fail(`unknown command "${command}"\n\n${USAGE}`)

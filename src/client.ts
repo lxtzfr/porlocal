@@ -2,8 +2,9 @@ import { spawn } from 'node:child_process'
 import { mkdirSync, openSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { DAEMON_LOG, DAEMON_URL, HOME } from './paths.js'
-import { isAlive } from './procs.js'
+import { existsSync, readFileSync, rmSync } from 'node:fs'
+import { DAEMON_LOG, DAEMON_URL, HOME, TRAY_LOG, TRAY_PID } from './paths.js'
+import { isAlive, killTree } from './procs.js'
 
 export class ApiError extends Error {}
 
@@ -65,16 +66,49 @@ export async function stopDaemon(): Promise<number | null> {
   throw new ApiError(`the daemon${pid ? ` (PID ${pid})` : ''} did not exit within 5 s: see ${DAEMON_LOG}`)
 }
 
-// Detached so it outlives the shell that started it (a Claude Code tool call, a terminal tab).
+// Detached so it outlives the shell that started it (a Claude Code tool call, a terminal tab); output in its log.
+function spawnDetached(entry: string, logFile: string): number | undefined {
+  mkdirSync(HOME, { recursive: true })
+  const out = openSync(logFile, 'a')
+  const main = join(dirname(fileURLToPath(import.meta.url)), entry)
+  const child = spawn(process.execPath, [main], { detached: true, stdio: ['ignore', out, out], windowsHide: true })
+  child.unref()
+  return child.pid
+}
+
 export async function ensureDaemon(): Promise<void> {
   if (await daemonUp()) return
-  mkdirSync(HOME, { recursive: true })
-  const out = openSync(DAEMON_LOG, 'a')
-  const main = join(dirname(fileURLToPath(import.meta.url)), 'daemon', 'main.js')
-  spawn(process.execPath, [main], { detached: true, stdio: ['ignore', out, out], windowsHide: true }).unref()
+  spawnDetached(join('daemon', 'main.js'), DAEMON_LOG)
   for (let i = 0; i < 50; i++) {
     await sleep(100)
     if (await daemonUp()) return
   }
   throw new ApiError(`the daemon did not start: see ${DAEMON_LOG}`)
+}
+
+/** The tray's PID when it runs (its own pid file: it has no API). */
+export function trayPid(): number | null {
+  const pid = existsSync(TRAY_PID) ? Number(readFileSync(TRAY_PID, 'utf-8')) : 0
+  return pid && isAlive(pid) ? pid : null
+}
+
+export async function ensureTray(): Promise<number> {
+  const running = trayPid()
+  if (running) return running
+  const pid = spawnDetached(join('tray', 'main.js'), TRAY_LOG)
+  for (let i = 0; i < 50; i++) {
+    await sleep(100)
+    if (trayPid()) return trayPid()!
+    if (pid && !isAlive(pid)) break
+  }
+  throw new ApiError(`the tray did not start: see ${TRAY_LOG}`)
+}
+
+/** Stops the tray and its PowerShell host (the whole tree); null: none ran. */
+export function stopTray(): number | null {
+  const pid = trayPid()
+  if (!pid) return null
+  killTree(pid)
+  rmSync(TRAY_PID, { force: true })
+  return pid
 }
