@@ -15,6 +15,8 @@ export interface RunRequest {
   cmd?: string
   /** The CLI's PID: the owner is detected from its ancestors. */
   callerPid: number
+  /** Windows PID -> parent's, from MSYS (`readMsysParents`): mends the chain a Git Bash exec cuts. */
+  parentHints?: Array<[number, number]>
   /** Explicit owner PID, or null for none (runs until stopped). */
   ownerPid?: number | null
   env: Record<string, string>
@@ -189,7 +191,7 @@ export class Supervisor {
 
     let owner: Managed['owner'] = null
     if (req.ownerPid === undefined) {
-      const found = detectOwner(processTable(), req.callerPid)
+      const found = detectOwner(processTable(), req.callerPid, new Map(req.parentHints ?? []))
       owner = found ? { pid: found.pid, name: found.name } : null
     } else if (req.ownerPid !== null) {
       owner = { pid: req.ownerPid, name: processTable().get(req.ownerPid)?.name ?? '?' }

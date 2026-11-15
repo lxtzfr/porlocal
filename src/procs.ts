@@ -25,6 +25,28 @@ export function processTable(): Map<number, ProcInfo> {
   return table
 }
 
+/**
+ * Git Bash (MSYS): a fork + exec leaves the Windows parent PID of the exec'd process pointing at a process gone, which
+ * cuts the chain to the session. MSYS `ps` still links them: Windows PID -> its MSYS parent's Windows PID.
+ */
+export function msysParents(psOutput: string): Map<number, number> {
+  const rows = psOutput.split(/\r?\n/).slice(1).map((line) => line.trim().split(/\s+/).map(Number)).filter((r) => r.length >= 4 && r.slice(0, 4).every(Number.isInteger))
+  const winpid = new Map(rows.map(([pid, , , win]) => [pid!, win!]))
+  const parents = new Map<number, number>()
+  for (const [, ppid, , win] of rows) if (winpid.has(ppid!)) parents.set(win!, winpid.get(ppid!)!)
+  return parents
+}
+
+/** The MSYS links of this machine, read from the CLI when it runs under Git Bash (the daemon has no MSYS PATH). */
+export function readMsysParents(): Array<[number, number]> {
+  if (process.platform !== 'win32' || !process.env.MSYSTEM) return []
+  try {
+    return [...msysParents(execFileSync('ps', ['-l'], { encoding: 'utf-8', windowsHide: true, stdio: ['ignore', 'pipe', 'ignore'] }))]
+  } catch {
+    return []
+  }
+}
+
 export function isAlive(pid: number): boolean {
   try {
     process.kill(pid, 0)
@@ -70,12 +92,14 @@ export function isOneShot(cmd: string): boolean {
  * shell running a single command (`bash -c`, `cmd /c`, `pwsh -Command` without `-NoExit`: Claude Code's Bash tool, a
  * script) and package runners. Kept: an interactive shell (a terminal tab), an IDE, a Claude Code session.
  */
-export function detectOwner(table: Map<number, ProcInfo>, fromPid: number): ProcInfo | null {
+export function detectOwner(table: Map<number, ProcInfo>, fromPid: number, parentHints = new Map<number, number>()): ProcInfo | null {
   let current = table.get(fromPid)
   const seen = new Set<number>()
   while (current && !seen.has(current.pid)) {
     seen.add(current.pid)
-    const parent = table.get(current.ppid)
+    // An exec keeps the MSYS PID: `ps` lists the exec'd process (already walked), not the stub whose parent is gone.
+    const hinted = [...seen].reverse().map((pid) => parentHints.get(pid)).find((pid) => pid !== undefined && !seen.has(pid))
+    const parent = table.get(current.ppid) ?? (hinted === undefined ? undefined : table.get(hinted))
     if (!parent || parent.pid <= 4) return null
     const oneShotShell = SHELLS.test(parent.name) && isOneShot(parent.cmd)
     const runner = RUNNERS.test(parent.name) || (/^node(\.exe)?$/i.test(parent.name) && RUNNERS.test(parent.cmd))
