@@ -12,6 +12,8 @@ import { dashboardFile } from './static.js'
 import { Supervisor, UserError, type RunRequest } from './supervisor.js'
 import { findZombies } from './zombies.js'
 import { projectPorts } from './projectPorts.js'
+import { cachedWorkspaces, checkouts } from './checkouts.js'
+import { projectGroups } from './projectGroups.js'
 
 export const VERSION = '0.1.0'
 
@@ -36,8 +38,12 @@ export function startServer(sup: Supervisor, adb: Adb, log: Logger, shutdown: ()
     const table = processTable()
     const listening = listeningPorts()
     const zombies = findZombies(sup.state, table, listening, [process.pid])
-    return { zombies, ports: projectPorts(sup.state, table, listening, zombies) }
+    const ports = projectPorts(sup.state, table, listening, zombies)
+    const listeningSet = new Set([...listening.values()].flat())
+    const list = checkouts({ state: sup.state, zombies, listening: listeningSet, workspace })
+    return { zombies, ports, checkouts: list, groups: projectGroups(list, (path) => workspace(path).main) }
   }
+  const workspace = cachedWorkspaces(resolveWorkspace)
   const zombies = () => machine().zombies
   const state = (): StateResponse => ({
     processes: sup.state.processes.map((p) => ({ ...p, ownerAlive: p.owner ? isAlive(p.owner.pid) : null })),
@@ -84,6 +90,7 @@ export function startServer(sup: Supervisor, adb: Adb, log: Logger, shutdown: ()
       const p = findProcess(url)
       return { id: p.id, text: tailText(p.logFile, Number(url.searchParams.get('tail') ?? 200)) }
     },
+    'GET /api/machine': machine,
     'GET /api/zombies': () => zombies(),
     'GET /api/ports': () => machine().ports,
     // Only a PID listed as a zombie right now: never a way to kill any process by number.

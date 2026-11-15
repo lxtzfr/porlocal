@@ -84,10 +84,56 @@ export interface ProjectPort {
   holder: PortHolder | null
 }
 
+/**
+ * ok: the target listens and `.env.local` holds its port; down: nothing listens on it; stale: `.env.local` holds
+ * another value (or none); unresolved: no port known for the target (not declared, never leased).
+ */
+export type LinkStatus = 'ok' | 'down' | 'stale' | 'unresolved'
+
+/** An env key of a checkout pointing at a service of another (or the same) checkout: `{url:server/api}`. */
+export interface CheckoutLink {
+  key: string
+  workspace: string
+  service: string
+  port: number | null
+  status: LinkStatus
+  /** The value in `.env.local` and the one it should hold, when they differ. */
+  written?: string | null
+  expected?: string
+}
+
+/** A checkout porlocal knows (it runs, leases or sees something there, it uses or is used by one of those). */
+export interface Checkout {
+  path: string
+  repo: string
+  /** 1 = the main checkout, n = slot n, null = a checkout outside the slot layout. */
+  slot: number | null
+  label: string
+  branch: string | null
+  issueUrl: string | null
+  uses: CheckoutLink[]
+  usedBy: { workspace: string; label: string; key: string; service: string; status: LinkStatus }[]
+}
+
+/** Checkouts linked together: a project's main checkouts, the slots of one ticket. */
+export interface ProjectGroup {
+  id: string
+  /** The project (`TRA-SIM`): its `*.code-workspace`, package name or folder. */
+  name: string
+  /** `TRA-SIM`, `TRA-SIM · slot 2`, `TRA-SIM · main + slot 2` (a slot using a main checkout). */
+  label: string
+  /** When all its checkouts are on the same one. */
+  branch: string | null
+  issueUrl: string | null
+  paths: string[]
+}
+
 /** What the daemon reads of the machine (one process table + port scan): `/api/events` `machine`. */
 export interface MachineResponse {
   zombies: Zombie[]
   ports: ProjectPort[]
+  checkouts: Checkout[]
+  groups: ProjectGroup[]
 }
 
 export interface StateResponse {

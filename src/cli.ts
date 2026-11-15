@@ -7,12 +7,14 @@ import { trayHostSupported } from './tray/host.js'
 import { DAEMON_LOG, DAEMON_URL, TRAY_LOG } from './paths.js'
 import { readMsysParents } from './procs.js'
 import { resolveWorkspace, workspaceLabel } from './workspace.js'
-import type { Lease, Managed, ProjectPort, StateResponse, Zombie } from './api.js'
+import type { Lease, MachineResponse, Managed, ProjectPort, StateResponse, Zombie } from './api.js'
+import { projectView, targetLabel } from './projectView.js'
 
 const USAGE = `porlocal: leases ports, supervises dev servers, maps device ports (optional: projects run without it)
 
   porlocal run [<service>] [--keep-port] [--owner <pid>|none] [--grace <s>] [-f] [-- <cmd>]
   porlocal up                          every declared service of this checkout (package.json myStack.services)
+  porlocal status [--json]             every checkout: branch, services, ports, links, what runs by hand
   porlocal ls [--json]                 processes, ports, owners
   porlocal stop|restart|keep|forget <service|id>      keep: no owner any more (runs until stopped)
   porlocal logs <service|id> [-f] [-n <lines>]
@@ -150,6 +152,43 @@ async function main(): Promise<void> {
       const names = Object.entries(ws.services).filter(([, s]) => s.run).map(([n]) => n)
       if (!names.length) fail('no service with a run command here (package.json myStack.services)')
       for (const name of names) await run({ ...args, cmd: undefined }, name).catch((err) => console.error(`porlocal: ${name}: ${err.message}`))
+      return
+    }
+    case 'status': {
+      const [state, machine] = await Promise.all([api<StateResponse>('/api/state'), api<MachineResponse>('/api/machine')])
+      const groups = projectView(state, machine)
+      if (args.flags.json) return console.log(JSON.stringify(groups, null, 2))
+      if (!groups.length) return console.log('nothing known yet (porlocal run in a checkout)')
+      const views = groups.flatMap((g) => g.checkouts)
+      for (const { group, checkouts } of groups) {
+        console.log(`${group.label}${group.branch ? `  branch ${group.branch}` : ''}${group.issueUrl ? `  ${group.issueUrl}` : ''}`)
+        for (const v of checkouts) {
+          const c = v.checkout
+          const slot = c.slot === 1 ? 'main checkout' : c.slot ? `slot ${c.slot}` : 'outside slots'
+          console.log(`  ${c.label}  ${slot}${c.branch && c.branch !== group.branch ? `  branch ${c.branch}` : ''}  ${c.path}`)
+          const rows = [
+            ...v.services.map((r) => [
+              r.service,
+              String(r.port),
+              r.process ? r.process.status : r.portState?.status === 'hand' ? 'started by hand' : 'not running',
+              [
+                r.portState?.status === 'conflict' && r.portState.holder ? `port taken by ${r.portState.holder.kind === 'porlocal' ? r.portState.holder.id : `${r.portState.holder.name} ${r.portState.holder.pid}`}` : '',
+                r.moved ? `moved from ${r.moved.port}` : '',
+                r.process?.owner ? `owner ${r.process.owner.name} ${r.process.owner.pid}` : '',
+                r.process ? `$ ${r.process.cmd}` : '',
+              ].filter(Boolean).join(', '),
+            ]),
+            ...v.hand.map((z) => [z.name, z.ports.join(' ') || '-', 'started by hand', `PID ${z.pid}${z.orphan ? ', orphan' : ''}, $ ${z.cmd}`]),
+            ...c.uses.map((l) => {
+              const leaves = !group.paths.includes(l.workspace)
+              return [`${l.key} ->`, l.port ? String(l.port) : '-', l.status, `${targetLabel(views, l.workspace, l.service)}${leaves ? ' (out of this group)' : ''}${l.status === 'stale' ? `, .env.local has ${l.written ?? 'nothing'}` : ''}`]
+            }),
+            ...c.usedBy.filter((u) => !group.paths.includes(u.workspace)).map((u) => [`<- ${u.label}`, '', u.status, u.key]),
+          ]
+          if (rows.length) printTable(rows.map((r) => ['    ' + r[0], ...r.slice(1)]))
+        }
+        console.log('')
+      }
       return
     }
     case 'ls':

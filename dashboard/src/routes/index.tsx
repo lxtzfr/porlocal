@@ -2,12 +2,13 @@ import { Stack } from '@mantine/core'
 import { createFileRoute } from '@tanstack/react-router'
 import { useState } from 'react'
 import { useDaemonState, useMachine } from '../api'
+import { projectView } from '../../../src/projectView'
+import { Cmd } from '../components/cells'
+import { GroupCard } from '../components/GroupCard'
 import { DevicesSection } from '../components/DevicesSection'
 import { LogDrawer } from '../components/LogDrawer'
-import { PortsTable } from '../components/PortsTable'
-import { ProcessesTable } from '../components/ProcessesTable'
+import { HighlightProvider } from '../highlight'
 import { Empty, Section } from '../components/Section'
-import { ZombiesTable } from '../components/ZombiesTable'
 
 export const Route = createFileRoute('/')({ component: Dashboard })
 
@@ -16,22 +17,23 @@ function Dashboard() {
   const machine = useMachine()
   const [logId, setLogId] = useState<string | null>(null)
   const s = state.data
-  const zombies = machine.data?.zombies
+  const groups = s ? projectView(s, machine.data) : []
   return (
-    <>
+    <HighlightProvider>
       <Stack gap="md">
-        <Section title="Processes" count={s?.processes.length}>
-          {s ? <ProcessesTable processes={s.processes} onLogs={setLogId} /> : <Empty>Loading…</Empty>}
-        </Section>
-        <Section title="Outside porlocal" count={zombies?.length}>
-          {zombies ? <ZombiesTable zombies={zombies} /> : <Empty>{machine.isError ? machine.error.message : 'Loading…'}</Empty>}
-        </Section>
-        <Section title="Ports" count={machine.data?.ports.length}>
-          {machine.data ? <PortsTable ports={machine.data.ports} /> : <Empty>{machine.isError ? machine.error.message : 'Loading…'}</Empty>}
-        </Section>
-        <Section title="Devices">{s ? <DevicesSection state={s} /> : <Empty>Loading…</Empty>}</Section>
+        {!s ? (
+          <Empty>Loading…</Empty>
+        ) : groups.length ? (
+          groups.map((g) => <GroupCard key={g.group.id} group={g} all={groups} onLogs={setLogId} />)
+        ) : (
+          <Section title="Checkouts">
+            <Empty>Nothing known yet: <Cmd>porlocal run &lt;service&gt;</Cmd> in a checkout.</Empty>
+          </Section>
+        )}
+        {machine.isError && <Empty>Machine view unavailable: {machine.error.message}</Empty>}
+        {s && <Section title="Devices">{<DevicesSection state={s} />}</Section>}
       </Stack>
       <LogDrawer id={logId} onClose={() => setLogId(null)} />
-    </>
+    </HighlightProvider>
   )
 }
