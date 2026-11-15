@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { State } from '../src/daemon/state.js'
+import type { State } from '../src/api.js'
 import { findZombies } from '../src/daemon/zombies.js'
 import type { ProcInfo } from '../src/procs.js'
 
