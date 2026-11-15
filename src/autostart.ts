@@ -24,13 +24,15 @@ export function enableAutostart(): string {
   const cli = join(dirname(fileURLToPath(import.meta.url)), 'cli.js')
   const quote = (s: string) => `""${s}""`
   mkdirSync(dirname(file), { recursive: true })
-  writeFileSync(file, `CreateObject("WScript.Shell").Run "${quote(process.execPath)} ${quote(cli)} daemon start", 0, False\r\n`)
-  log.info(`daemon starts at login: ${file}`)
+  const run = (args: string, wait: boolean) => `shell.Run "${quote(process.execPath)} ${quote(cli)} ${args}", 0, ${wait ? 'True' : 'False'}\r\n`
+  // The daemon first (waited for), then the tray: it comes up green rather than grey.
+  writeFileSync(file, `Set shell = CreateObject("WScript.Shell")\r\n${run('daemon start', true)}${run('tray', false)}`)
+  log.info(`daemon and tray start at login: ${file}`)
   return file
 }
 
 export function disableAutostart(): void {
   const file = startupScript()
   rmSync(file, { force: true })
-  log.info(`daemon no longer starts at login (${file} removed)`)
+  log.info(`daemon and tray no longer start at login (${file} removed)`)
 }

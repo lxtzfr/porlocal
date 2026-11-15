@@ -5,6 +5,8 @@ export const HOME = process.env.PORLOCAL_HOME ?? join(homedir(), '.porlocal')
 export const STATE_FILE = join(HOME, 'state.json')
 export const LOGS_DIR = join(HOME, 'logs')
 export const DAEMON_LOG = join(HOME, 'daemon.log')
+export const TRAY_LOG = join(HOME, 'tray.log')
+export const TRAY_PID = join(HOME, 'tray.pid')
 export const DAEMON_PORT = Number(process.env.PORLOCAL_PORT ?? 4780)
 export const DAEMON_URL = `http://127.0.0.1:${DAEMON_PORT}`
 // Undeclared services (`porlocal run x -- <cmd>`) and fallbacks when a declared port is taken: away from the

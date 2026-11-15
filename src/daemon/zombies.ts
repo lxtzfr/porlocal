@@ -6,8 +6,8 @@ import type { State, Zombie } from '../api.js'
 // Apps that run from a checkout without being a dev server left behind (Unity's -projectPath, an IDE's folder).
 const APPS = /^(code|code - insiders|cursor|claude|unity|unity hub|idea64|webstorm64|rider64|devenv|explorer|windowsterminal)(\.exe)?$/i
 
-// Any porlocal daemon (another PORLOCAL_HOME, a slot's build): it and what it launched are porlocal's, not zombies.
-const DAEMON = /porlocal[^"\s]*[\\/]dist[\\/]daemon[\\/]main\.js/i
+// Any porlocal daemon or tray (another PORLOCAL_HOME, a slot's build): it and what it launched are porlocal's.
+const DAEMON = /porlocal[^"\s]*[\\/]dist[\\/](daemon|tray)[\\/]main\.js/i
 
 const isRepo = (path: string) => existsSync(join(path, '.git'))
 
