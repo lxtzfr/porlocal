@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { spawn } from 'node:child_process'
+import { autostartStatus, disableAutostart, enableAutostart } from './autostart.js'
 import { api, ApiError, daemonUp, ensureDaemon } from './client.js'
 import { DAEMON_LOG, DAEMON_URL } from './paths.js'
 import { resolveWorkspace, workspaceLabel } from './workspace.js'
@@ -15,7 +16,7 @@ const USAGE = `porlocal: leases ports, supervises dev servers, maps device ports
   porlocal lease <service> [--new-port] | release <service>
   porlocal device bind <service|repo/service> --port <device port> [--device <serial>]
   porlocal device unbind --port <device port> [--device <serial>] | device ls
-  porlocal dashboard | daemon status|stop
+  porlocal dashboard | daemon start|status|stop | daemon autostart [on|off]   autostart: at Windows login
 
   <cmd> may use {port}, {url}, {port:<repo>/<service>}, {url:<repo>/<service>}. The owner (default: the terminal,
   IDE or Claude Code session that ran porlocal) dying stops the process after --grace (30 s).`
@@ -109,6 +110,13 @@ async function main(): Promise<void> {
   if (command === 'daemon') {
     if (sub === 'status') return console.log((await daemonUp()) ? `running at ${DAEMON_URL} (log: ${DAEMON_LOG})` : 'not running')
     if (sub === 'stop') return void (await api('/api/shutdown', {}).catch(() => console.log('not running')))
+    if (sub === 'autostart') {
+      const mode = args._[2]
+      if (mode === 'on') enableAutostart()
+      else if (mode === 'off') disableAutostart()
+      else if (mode) throw new ApiError('daemon autostart [on|off]')
+      return console.log(`autostart: ${autostartStatus()}`)
+    }
     await ensureDaemon()
     return console.log(`running at ${DAEMON_URL}`)
   }
