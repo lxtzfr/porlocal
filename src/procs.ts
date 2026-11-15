@@ -17,7 +17,7 @@ export function processTable(): Map<number, ProcInfo> {
     }
     return table
   }
-  const out = execFileSync('ps', ['-A', '-o', 'pid=,ppid=,comm=,args='], { encoding: 'utf-8' })
+  const out = execFileSync('ps', ['-A', '-o', 'pid=,ppid=,comm=,args='], { encoding: 'utf-8', windowsHide: true })
   for (const line of out.split('\n')) {
     const m = line.trim().match(/^(\d+)\s+(\d+)\s+(\S+)\s*(.*)$/)
     if (m) table.set(Number(m[1]), { pid: Number(m[1]), ppid: Number(m[2]), name: m[3]!, cmd: m[4]! })

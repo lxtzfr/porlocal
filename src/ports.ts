@@ -35,7 +35,7 @@ export function listeningPorts(): Map<number, number[]> {
     } else {
       // -F pn: `p<pid>` then `n<addr>:<port>` lines.
       let pid = 0
-      for (const line of execFileSync('lsof', ['-nP', '-iTCP', '-sTCP:LISTEN', '-F', 'pn'], { encoding: 'utf-8', stdio: ['ignore', 'pipe', 'ignore'] }).split('\n')) {
+      for (const line of execFileSync('lsof', ['-nP', '-iTCP', '-sTCP:LISTEN', '-F', 'pn'], { encoding: 'utf-8', stdio: ['ignore', 'pipe', 'ignore'], windowsHide: true }).split('\n')) {
         if (line.startsWith('p')) pid = Number(line.slice(1))
         else if (line.startsWith('n') && pid) add(pid, Number(line.slice(line.lastIndexOf(':') + 1)))
       }

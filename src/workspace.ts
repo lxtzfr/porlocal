@@ -25,7 +25,7 @@ export interface Workspace {
 
 function git(cwd: string, ...args: string[]): string | null {
   try {
-    return execFileSync('git', ['-C', cwd, ...args], { encoding: 'utf-8', stdio: ['ignore', 'pipe', 'ignore'] }).trim()
+    return execFileSync('git', ['-C', cwd, ...args], { encoding: 'utf-8', stdio: ['ignore', 'pipe', 'ignore'], windowsHide: true }).trim()
   } catch {
     return null
   }
