@@ -118,7 +118,14 @@ export interface Checkout {
 /** Checkouts linked together: a project's main checkouts, the slots of one ticket. */
 export interface ProjectGroup {
   id: string
-  /** The project (`TRA-SIM`): its `*.code-workspace`, package name or folder. */
+  /**
+   * workspace: an umbrella project, its repos are sub-folders of a workspace repo (my-stack's `wt new --repos`);
+   * solo: one repo on its own; linked: repos linked together without a workspace repo.
+   */
+  kind: 'workspace' | 'solo' | 'linked'
+  /** The workspace repo, for an umbrella project. */
+  workspace: string | null
+  /** `TRA-SIM` (a workspace: its `*.code-workspace`, package name or folder), `website` (solo), `porlocal + my-stack`. */
   name: string
   /** `TRA-SIM`, `TRA-SIM · slot 2`, `TRA-SIM · main + slot 2` (a slot using a main checkout). */
   label: string

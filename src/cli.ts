@@ -161,7 +161,7 @@ async function main(): Promise<void> {
       if (!groups.length) return console.log('nothing known yet (porlocal run in a checkout)')
       const views = groups.flatMap((g) => g.checkouts)
       for (const { group, checkouts } of groups) {
-        console.log(`${group.label}${group.branch ? `  branch ${group.branch}` : ''}${group.issueUrl ? `  ${group.issueUrl}` : ''}`)
+        console.log(`${group.label}${group.workspace ? `  (workspace ${group.workspace})` : ''}${group.branch ? `  branch ${group.branch}` : ''}${group.issueUrl ? `  ${group.issueUrl}` : ''}`)
         for (const v of checkouts) {
           const c = v.checkout
           const slot = c.slot === 1 ? 'main checkout' : c.slot ? `slot ${c.slot}` : 'outside slots'

@@ -71,7 +71,7 @@ function CheckoutHeader({ v, ctx }: { v: CheckoutView; ctx: Ctx }) {
     <Stack gap={4}>
       <Group justify="space-between" wrap="nowrap">
         <Group gap="sm" wrap="nowrap">
-          <Text fw={700}>{c.repo}</Text>
+          {g.kind !== 'solo' && <Text fw={700}>{c.repo}</Text>}
           {g.label === g.name && c.slot === 1 ? null : <Badge variant="outline" size="sm" color={c.slot === 1 ? 'blue' : 'grape'}>{slotLabel(c.slot)}</Badge>}
           {c.branch && c.branch !== g.branch && <Branch name={c.branch} issueUrl={c.issueUrl} />}
         </Group>
@@ -203,6 +203,11 @@ export function GroupCard({ group, all, onLogs }: { group: GroupView; all: Group
     <Card withBorder radius="md" padding="md">
       <Group gap="sm" mb="xs">
         <Title order={2} size="h4">{g.label}</Title>
+        {g.workspace && (
+          <Tooltip label={`Umbrella project: its repos live in the workspace repo ${g.workspace}`} multiline maw={420}>
+            <Badge variant="outline" color="gray" size="sm">workspace</Badge>
+          </Tooltip>
+        )}
         {g.branch && <Branch name={g.branch} issueUrl={g.issueUrl} />}
       </Group>
       <Table.ScrollContainer minWidth={800}>

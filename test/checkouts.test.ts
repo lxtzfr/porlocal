@@ -1,6 +1,6 @@
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { basename, join } from 'node:path'
+import { basename, dirname, join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import type { Checkout, State, Zombie } from '../src/api.js'
 import { projectGroups, projectName } from '../src/daemon/projectGroups.js'
@@ -95,7 +95,7 @@ describe('projectGroups', () => {
 
   it('groups the checkouts linked together, named after the project', () => {
     const dir = join(root, 'proj')
-    mkdirSync(dir, { recursive: true })
+    mkdirSync(join(dir, '.git'), { recursive: true })
     writeFileSync(join(dir, 'TRA-SIM.code-workspace'), '{}')
     const groups = projectGroups(list, (p) => join(dir, basename(p)))
     expect(groups.map((g) => [g.label, g.branch, g.paths.map((p) => p.split('/').pop())])).toEqual([
@@ -103,8 +103,16 @@ describe('projectGroups', () => {
       ['TRA-SIM · slot 2', '9-x', ['server-2', 'web-2']],
       ['TRA-SIM · slot 2', 'feat', ['unity-2']],
     ])
-    // No such folder on disk: its name.
-    expect(projectGroups(list, mainOf)[0]!.name).toBe('ws')
+    expect(groups.every((g) => g.kind === 'workspace' && g.workspace === dirname(join(dir, 'x')))).toBe(true)
+  })
+
+  it('names a group without a workspace repo after its repos: solo, or linked', () => {
+    // `P` holds the repos side by side, it is no repo itself.
+    expect(projectGroups(list, mainOf).map((g) => [g.kind, g.label])).toEqual([
+      ['linked', 'admin + server + unity + web · main + slot 3'],
+      ['linked', 'server + web · slot 2'],
+      ['solo', 'unity · slot 2'],
+    ])
   })
 
   it('names a project from its package name when no .code-workspace', () => {

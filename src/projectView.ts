@@ -80,7 +80,7 @@ export function projectView(state: StateResponse, machine: MachineResponse | und
   // A checkout the machine feed doesn't know yet: alone until its next snapshot.
   for (const v of views.filter((x) => !placed.has(x.checkout.path))) {
     const c = v.checkout
-    groups.push({ group: { id: c.path, name: c.repo, label: c.label, branch: c.branch, issueUrl: c.issueUrl, paths: [c.path] }, checkouts: [v] })
+    groups.push({ group: { id: c.path, kind: 'solo', workspace: null, name: c.repo, label: c.label, branch: c.branch, issueUrl: c.issueUrl, paths: [c.path] }, checkouts: [v] })
   }
   return groups.filter((g) => g.checkouts.length)
 }
