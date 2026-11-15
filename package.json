@@ -63,6 +63,6 @@
     }
   },
   "dependencies": {
-    "@lxtzfr/wt": "github:lxtzfr/wt#v0.1.0"
+    "@lxtzfr/wt": "github:lxtzfr/wt#v1.0.0"
   }
 }
