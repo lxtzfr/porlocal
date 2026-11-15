@@ -1,5 +1,5 @@
 import { ActionIcon, Anchor, Badge, Card, Group, Stack, Table, Text, Title, Tooltip } from '@mantine/core'
-import { IconArrowLeft, IconArrowRight, IconBrandVscode, IconGitBranch } from '@tabler/icons-react'
+import { IconArrowLeft, IconArrowRight, IconBrandVscode, IconFolder, IconGitBranch, IconLink, IconStack2 } from '@tabler/icons-react'
 import type { CheckoutLink, LinkStatus, PortHolder } from '../../../src/api'
 import { groupOf, targetLabel, type CheckoutView, type GroupView, type ServiceRow } from '../../../src/projectView'
 import { useNow } from '../api'
@@ -16,6 +16,13 @@ const LINK: Record<LinkStatus, { color: string; tip: string }> = {
   unresolved: { color: 'yellow', tip: 'No port known for its target: not declared, never leased' },
 }
 const COLUMNS = ['Service', 'Port', 'Status', 'Owner', 'Up', '']
+
+// Each kind of group is told apart at a glance: its colour (left border, icon) and its header.
+const KIND = {
+  workspace: { color: 'blue', Icon: IconStack2, badge: 'workspace' },
+  linked: { color: 'grape', Icon: IconLink, badge: 'linked repos' },
+  solo: { color: 'gray', Icon: IconFolder, badge: null },
+} as const
 
 const holderName = (h: PortHolder | null) => (!h ? 'nothing' : h.kind === 'porlocal' ? `porlocal ${h.id}` : `${h.name} (PID ${h.pid})`)
 const slotLabel = (slot: number | null) => (slot === 1 ? 'main' : slot ? `slot ${slot}` : 'outside slots')
@@ -72,7 +79,8 @@ function RepoName({ c, size }: { c: CheckoutView['checkout']; size?: string }) {
   )
 }
 
-function CheckoutHeader({ v, ctx }: { v: CheckoutView; ctx: Ctx }) {
+/** A checkout's name, slot, branch, path and links; `title`: it heads a solo card (no group header above it). */
+function CheckoutHeader({ v, ctx, title }: { v: CheckoutView; ctx: Ctx; title?: boolean }) {
   const c = v.checkout
   const g = ctx.group.group
   // Inside the group, `uses` already draws each link: only what comes from another group is worth a "used by".
@@ -81,9 +89,10 @@ function CheckoutHeader({ v, ctx }: { v: CheckoutView; ctx: Ctx }) {
     <Stack gap={4}>
       <Group justify="space-between" wrap="nowrap">
         <Group gap="sm" wrap="nowrap">
-          {g.kind !== 'solo' && <RepoName c={c} />}
-          {g.label === g.name && c.slot === 1 ? null : <Badge variant="outline" size="sm" color={c.slot === 1 ? 'blue' : 'grape'}>{slotLabel(c.slot)}</Badge>}
-          {c.branch && c.branch !== g.branch && <Branch name={c.branch} issueUrl={c.issueUrl} />}
+          {title && <KindIcon kind={g.kind} />}
+          <RepoName c={c} size={title ? 'lg' : undefined} />
+          {(title || g.label === g.name) && c.slot === 1 ? null : <Badge variant="outline" size="sm" color={c.slot === 1 ? 'blue' : 'grape'}>{slotLabel(c.slot)}</Badge>}
+          {c.branch && (title || c.branch !== g.branch) && <Branch name={c.branch} issueUrl={c.issueUrl} />}
         </Group>
         <Group gap={4} wrap="nowrap">
           <Path value={c.path} max={360} />
@@ -163,13 +172,20 @@ function ServiceRowView({ workspace, r, now, onLogs }: { workspace: string; r: S
   )
 }
 
-function CheckoutRows({ v, ctx, now, onLogs }: { v: CheckoutView; ctx: Ctx; now: number; onLogs: (id: string) => void }) {
+function KindIcon({ kind }: { kind: keyof typeof KIND }) {
+  const { color, Icon } = KIND[kind]
+  return <Icon size={20} stroke={1.6} color={`var(--mantine-color-${color}-6)`} />
+}
+
+function CheckoutRows({ v, ctx, now, onLogs, header }: { v: CheckoutView; ctx: Ctx; now: number; onLogs: (id: string) => void; header: boolean }) {
   const headerLit = useIsHighlighted(v.checkout.path)
   return (
     <>
-      <Table.Tr bg={headerLit ? HIGHLIGHT_BG : 'var(--mantine-color-default-hover)'}>
-        <Table.Td colSpan={COLUMNS.length}><CheckoutHeader v={v} ctx={ctx} /></Table.Td>
-      </Table.Tr>
+      {header && (
+        <Table.Tr bg={headerLit ? HIGHLIGHT_BG : 'var(--mantine-color-default-hover)'}>
+          <Table.Td colSpan={COLUMNS.length}><CheckoutHeader v={v} ctx={ctx} /></Table.Td>
+        </Table.Tr>
+      )}
       {!v.services.length && !v.hand.length && (
         <Table.Tr>
           <Table.Td colSpan={COLUMNS.length}><Text size="sm" c="dimmed">Nothing running here.</Text></Table.Td>
@@ -204,36 +220,46 @@ function CheckoutRows({ v, ctx, now, onLogs }: { v: CheckoutView; ctx: Ctx; now:
   )
 }
 
-/** A group of linked checkouts (a project's main checkouts, a ticket's slots): one table, a header row per checkout. */
+/**
+ * A group of linked checkouts: a workspace (umbrella project) or linked repos get a group header then a header row
+ * per checkout; a solo repo is one checkout, its header heads the card.
+ */
 export function GroupCard({ group, all, onLogs }: { group: GroupView; all: GroupView[]; onLogs: (id: string) => void }) {
   const now = useNow()
   const ctx: Ctx = { all, views: all.flatMap((g) => g.checkouts), group }
   const g = group.group
+  const kind = KIND[g.kind]
+  const solo = g.kind === 'solo' && group.checkouts.length === 1
+  const lit = useIsHighlighted(solo ? group.checkouts[0]!.checkout.path : '')
   return (
-    <Card withBorder radius="md" padding="md">
-      <Group gap="sm" mb="xs">
-        {/* A solo repo's title is its remote: a link to its page, as a repo name is elsewhere. */}
-        {g.kind === 'solo' && group.checkouts[0]?.checkout.remote ? (
-          <Anchor href={group.checkouts[0].checkout.remote.url} target="_blank" rel="noopener" c="inherit">
-            <Title order={2} size="h4">{g.label}</Title>
-          </Anchor>
-        ) : (
+    <Card withBorder radius="md" padding="md" style={{ borderLeft: `4px solid var(--mantine-color-${kind.color}-6)` }}>
+      {solo ? (
+        <Card.Section inheritPadding py="xs" mb="xs" bg={lit ? HIGHLIGHT_BG : undefined}>
+          <CheckoutHeader v={group.checkouts[0]!} ctx={ctx} title />
+        </Card.Section>
+      ) : (
+        <Group gap="sm" mb="xs">
+          <KindIcon kind={g.kind} />
           <Title order={2} size="h4">{g.label}</Title>
-        )}
-        {g.workspace && (
-          <Tooltip label={`Umbrella project: its repos live in the workspace repo ${g.workspace}`} multiline maw={420}>
-            <Badge variant="outline" color="gray" size="sm">workspace</Badge>
-          </Tooltip>
-        )}
-        {g.branch && <Branch name={g.branch} issueUrl={g.issueUrl} />}
-      </Group>
+          {kind.badge && (
+            <Tooltip
+              label={g.workspace ? `Umbrella project: its repos live in the workspace repo ${g.workspace}` : 'Repos linked by their env, without a workspace repo'}
+              multiline
+              maw={420}
+            >
+              <Badge variant="light" color={kind.color} size="sm">{kind.badge}</Badge>
+            </Tooltip>
+          )}
+          {g.branch && <Branch name={g.branch} issueUrl={g.issueUrl} />}
+        </Group>
+      )}
       <Table.ScrollContainer minWidth={800}>
         <Table verticalSpacing={4}>
           <Table.Thead>
             <Table.Tr>{COLUMNS.map((h) => <Table.Th key={h}>{h}</Table.Th>)}</Table.Tr>
           </Table.Thead>
           <Table.Tbody>
-            {group.checkouts.map((v) => <CheckoutRows key={v.checkout.path} v={v} ctx={ctx} now={now} onLogs={onLogs} />)}
+            {group.checkouts.map((v) => <CheckoutRows key={v.checkout.path} v={v} ctx={ctx} now={now} onLogs={onLogs} header={!solo} />)}
           </Table.Tbody>
         </Table>
       </Table.ScrollContainer>
