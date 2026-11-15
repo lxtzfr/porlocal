@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { detectOwner, isOneShot, type ProcInfo } from '../src/procs.js'
+import { detectOwner, isOneShot, msysParents, type ProcInfo } from '../src/procs.js'
 
 const table = (procs: Array<[number, number, string, string]>) =>
   new Map<number, ProcInfo>(procs.map(([pid, ppid, name, cmd]) => [pid, { pid, ppid, name, cmd }]))
@@ -39,5 +39,31 @@ describe('detectOwner', () => {
   it('no owner when the chain reaches the system', () => {
     const t = table([[30, 4, 'node.exe', 'node dist/cli.js run']])
     expect(detectOwner(t, 30)).toBeNull()
+  })
+})
+
+describe('msysParents', () => {
+  const ps = [
+    '      PID    PPID    PGID     WINPID   TTY         UID    STIME COMMAND',
+    '     3413       1    3413      23356  ?         197609 05:09:25 /usr/bin/bash',
+    '     3414    3413    3413      23300  ?         197609 05:09:25 /usr/bin/sh',
+    '     3415    3414    3413      25032  ?         197609 05:09:25 /usr/bin/ps',
+  ].join('\n')
+
+  it('maps Windows PIDs to their MSYS parent', () => {
+    expect([...msysParents(ps)]).toEqual([[23300, 23356], [25032, 23300]])
+  })
+
+  // The bin shim `sh` execs node: ps lists node under the shim's MSYS PID, the shim's Windows stub has a dead parent.
+  it('mends the chain a Git Bash exec cuts: owner = the session', () => {
+    const t = table([
+      [10, 1, 'claude.exe', 'claude.exe --resume x'],
+      [31688, 10, 'bash.exe', 'bash.exe -c "porlocal up"'],
+      [24896, 999, 'sh.exe', 'sh /c/Users/me/pnpm/porlocal up'],
+      [30, 24896, 'node.exe', 'node dist/cli.js up'],
+    ])
+    const execPs = ['header', '     3529       1    3529      31688  ?  197609 05:11:07 /usr/bin/bash', '     3531    3529    3529         30  ?  197609 05:11:07 /c/Program Files/nodejs/node'].join('\n')
+    expect(detectOwner(t, 30)).toBeNull()
+    expect(detectOwner(t, 30, msysParents(execPs))?.pid).toBe(10)
   })
 })

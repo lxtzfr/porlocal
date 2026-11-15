@@ -3,6 +3,7 @@ import { spawn } from 'node:child_process'
 import { autostartStatus, disableAutostart, enableAutostart } from './autostart.js'
 import { api, ApiError, daemonUp, ensureDaemon } from './client.js'
 import { DAEMON_LOG, DAEMON_URL } from './paths.js'
+import { readMsysParents } from './procs.js'
 import { resolveWorkspace, workspaceLabel } from './workspace.js'
 import type { Lease, Managed } from './daemon/state.js'
 
@@ -87,6 +88,7 @@ async function run(args: Args, service?: string): Promise<Managed> {
     service: service ?? args._[1] ?? defaultService(),
     cmd: args.cmd,
     callerPid: process.pid,
+    parentHints: readMsysParents(),
     ownerPid: owner === undefined ? undefined : owner === 'none' ? null : Number(owner),
     env: process.env,
     newPort: !!args.flags['new-port'],
