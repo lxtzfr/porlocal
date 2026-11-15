@@ -28,6 +28,7 @@ export const DASHBOARD_HTML = /* html */ `<!doctype html>
 <main>
   <section><h2>Processes</h2><div id="processes"></div></section>
   <section id="logbox" hidden><h2 id="logtitle">Logs</h2><pre id="log"></pre></section>
+  <section><h2>Outside porlocal</h2><div id="zombies"></div></section>
   <section><h2>Leased ports</h2><div id="leases"></div></section>
   <section><h2>Devices</h2><div id="devices"></div></section>
 </main>
@@ -71,6 +72,18 @@ async function refresh() {
       '<td>' + esc(b.service) + '</td>', '<td class="path">' + esc(b.workspace) + '</td>']), 'No binding: <code>porlocal device bind &lt;service&gt; --port 3001</code>');
   if (logId) showLog(logId);
 }
+// Slower than /api/state: it reads the whole process table.
+async function refreshZombies() {
+  let z; try { z = await call('/api/zombies'); } catch { return; }
+  document.getElementById('zombies').innerHTML = table(['PID', 'Name', 'Ports', '', 'Checkout', 'Command', ''],
+    z.map((p) => ['<td>' + p.pid + '</td>', '<td>' + esc(p.name) + '</td>',
+      '<td>' + (p.ports.length ? p.ports.map((port) => '<a href="http://localhost:' + port + '" target="_blank" rel="noopener">' + port + '</a>').join(' ') : '<span class="muted">-</span>') + '</td>',
+      '<td>' + (p.orphan ? '<span class="badge warn" title="its parent is gone">orphan</span>' : '') + '</td>',
+      '<td class="path" title="' + esc(p.checkout) + '">' + esc(p.checkout) + '</td>',
+      '<td class="path" title="' + esc(p.cmd) + '">' + esc(p.cmd) + '</td>',
+      '<td><button data-kill="' + p.pid + '" data-name="' + esc(p.name + ' ' + p.checkout) + '">kill</button></td>']),
+    'None: every dev process of these checkouts runs under porlocal.');
+}
 async function showLog(id) {
   logId = id; const box = document.getElementById('logbox'); box.hidden = false;
   document.getElementById('logtitle').textContent = 'Logs: ' + id;
@@ -79,11 +92,18 @@ async function showLog(id) {
   if (atBottom) pre.scrollTop = pre.scrollHeight;
 }
 document.addEventListener('click', async (e) => {
+  const k = e.target.closest('button[data-kill]');
+  if (k) {
+    if (!confirm('Kill PID ' + k.dataset.kill + ' (' + k.dataset.name + ') and its whole tree?')) return;
+    k.disabled = true; try { await call('/api/kill', { pid: Number(k.dataset.kill) }); } finally { refreshZombies(); }
+    return;
+  }
   const b = e.target.closest('button[data-act]'); if (!b) return;
   if (b.dataset.act === 'logs') return showLog(b.dataset.id);
   b.disabled = true; try { await call('/api/' + b.dataset.act, { id: b.dataset.id }); } finally { b.disabled = false; refresh(); }
 });
 refresh(); setInterval(refresh, 2000);
+refreshZombies(); setInterval(refreshZombies, 5000);
 </script>
 </body>
 </html>

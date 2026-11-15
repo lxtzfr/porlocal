@@ -15,7 +15,7 @@ same `.env.local` block my-stack's `wt env` writes (contract: `src/envLocal.ts`,
 
 - `src/cli.ts` (CLI, talks HTTP to the daemon, starts it detached on demand: `client.ts`; login start: `autostart.ts`).
 - `src/daemon/`: `main.ts`, `server.ts` (JSON API + `dashboard.ts` page on 127.0.0.1:4780), `supervisor.ts` (leases,
-  processes, owners), `adb.ts` (device bindings), `state.ts` (`~/.porlocal/state.json`, logs in `~/.porlocal/logs/`).
+  processes, owners), `adb.ts` (device bindings), `zombies.ts` (dev processes of known checkouts not run by porlocal), `state.ts` (`~/.porlocal/state.json`, logs in `~/.porlocal/logs/`).
 - Shared: `workspace.ts` (checkout, slot n, declared services, links), `envLocal.ts`, `ports.ts`, `procs.ts`, `adbPath.ts` (ADB, PATH, Android SDK, Unity Hub).
 
 ## Rules
