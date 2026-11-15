@@ -175,9 +175,10 @@ async function main(): Promise<void> {
                 r.portState?.status === 'conflict' && r.portState.holder ? `port taken by ${r.portState.holder.kind === 'porlocal' ? r.portState.holder.id : `${r.portState.holder.name} ${r.portState.holder.pid}`}` : '',
                 r.moved ? `moved from ${r.moved.port}` : '',
                 r.process?.owner ? `owner ${r.process.owner.name} ${r.process.owner.pid}` : '',
+                r.process ? `$ ${r.process.cmd}` : '',
               ].filter(Boolean).join(', '),
             ]),
-            ...v.hand.map((z) => [z.name, z.ports.join(' ') || '-', 'started by hand', `PID ${z.pid}${z.orphan ? ', orphan' : ''}`]),
+            ...v.hand.map((z) => [z.name, z.ports.join(' ') || '-', 'started by hand', `PID ${z.pid}${z.orphan ? ', orphan' : ''}, $ ${z.cmd}`]),
             ...c.uses.map((l) => {
               const leaves = !group.paths.includes(l.workspace)
               return [`${l.key} ->`, l.port ? String(l.port) : '-', l.status, `${targetLabel(views, l.workspace, l.service)}${leaves ? ' (out of this group)' : ''}${l.status === 'stale' ? `, .env.local has ${l.written ?? 'nothing'}` : ''}`]

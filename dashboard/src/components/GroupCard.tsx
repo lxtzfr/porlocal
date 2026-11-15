@@ -127,11 +127,23 @@ function ServiceStatus({ r }: { r: ServiceRow }) {
   )
 }
 
+/** The command line it was launched with, under its name: the full one on hover. */
+function Command({ cmd }: { cmd: string }) {
+  return (
+    <Tooltip label={cmd} multiline maw={700} openDelay={300}>
+      <Text size="xs" c="dimmed" ff="monospace" truncate maw={340}>{cmd}</Text>
+    </Tooltip>
+  )
+}
+
 function ServiceRowView({ workspace, r, now, onLogs }: { workspace: string; r: ServiceRow; now: number; onLogs: (id: string) => void }) {
   const lit = useIsHighlighted(workspace, r.service)
   return (
     <Table.Tr bg={lit ? HIGHLIGHT_BG : undefined} style={{ transition: 'background-color 120ms' }}>
-      <Table.Td><Text fw={600} size="sm">{r.service}</Text></Table.Td>
+      <Table.Td>
+        <Text fw={600} size="sm">{r.service}</Text>
+        {r.process && <Command cmd={r.process.cmd} />}
+      </Table.Td>
       <Table.Td><PortCell r={r} /></Table.Td>
       <Table.Td><ServiceStatus r={r} /></Table.Td>
       <Table.Td>{r.process && <Owner p={r.process} now={now} />}</Table.Td>
@@ -157,9 +169,8 @@ function CheckoutRows({ v, ctx, now, onLogs }: { v: CheckoutView; ctx: Ctx; now:
       {v.hand.map((z) => (
         <Table.Tr key={z.pid}>
           <Table.Td>
-            <Tooltip label={z.cmd} multiline maw={600} openDelay={300}>
-              <Text size="sm" truncate maw={220}>{z.name}</Text>
-            </Tooltip>
+            <Text size="sm">{z.name}</Text>
+            <Command cmd={z.cmd} />
           </Table.Td>
           <Table.Td>
             <Group gap={6}>{z.ports.length ? z.ports.map((p) => <PortLink key={p} port={p} />) : <Text size="sm" c="dimmed">-</Text>}</Group>
