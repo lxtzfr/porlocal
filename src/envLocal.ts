@@ -8,7 +8,7 @@ export { LOCAL_ENV, readBlock, writeBlock } from '@lxtzfr/wt'
 
 export type PortOf = (workspace: string, service: string) => number | undefined
 
-/** `myStack.env` of `ws` with every placeholder resolved, its `{port:...}` / `{url:...}` through `portOf`. */
+/** `localDev.env` of `ws` with every placeholder resolved, its `{port:...}` / `{url:...}` through `portOf`. */
 export function resolveEnv(ws: Workspace, portOf: PortOf): { values: Record<string, string>; skipped: string[] } {
   const current = readBlock(ws.path)
   const resolved = wtResolveEnv(ws, { env: ws.env, portOf: (t) => portOf(t.path, t.service) })

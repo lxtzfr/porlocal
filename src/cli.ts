@@ -13,7 +13,7 @@ import { projectView, targetLabel } from './projectView.js'
 const USAGE = `porlocal: leases ports, supervises dev servers, maps device ports (optional: projects run without it)
 
   porlocal run [<service>] [--keep-port] [--owner <pid>|none] [--grace <s>] [-f] [-- <cmd>]
-  porlocal up                          every declared service of this checkout (package.json myStack.services)
+  porlocal up                          every declared service of this checkout (package.json localDev.services)
   porlocal status [--json]             every checkout: branch, services, ports, links, what runs by hand
   porlocal ls [--json]                 processes, ports, owners
   porlocal stop|restart|keep|forget <service|id>      keep: no owner any more (runs until stopped)
@@ -68,7 +68,7 @@ function toId(target: string | undefined): string {
 function defaultService(): string {
   const names = Object.keys(here().services)
   if (names.length === 1) return names[0]!
-  return fail(names.length ? `which service: ${names.join(', ')}?` : 'no service declared here (package.json myStack.services): porlocal run <name> -- <cmd>')
+  return fail(names.length ? `which service: ${names.join(', ')}?` : 'no service declared here (package.json localDev.services): porlocal run <name> -- <cmd>')
 }
 
 function describe(p: Managed): string {
@@ -150,7 +150,7 @@ async function main(): Promise<void> {
     case 'up': {
       const ws = here()
       const names = Object.entries(ws.services).filter(([, s]) => s.run).map(([n]) => n)
-      if (!names.length) fail('no service with a run command here (package.json myStack.services)')
+      if (!names.length) fail('no service with a run command here (package.json localDev.services)')
       for (const name of names) await run({ ...args, cmd: undefined }, name).catch((err) => console.error(`porlocal: ${name}: ${err.message}`))
       return
     }
