@@ -1,8 +1,9 @@
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { basename, join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import type { State, Zombie } from '../src/api.js'
+import type { Checkout, State, Zombie } from '../src/api.js'
+import { projectGroups, projectName } from '../src/daemon/projectGroups.js'
 import { checkouts } from '../src/daemon/checkouts.js'
 import { currentBranch, issueUrl, remoteWebUrl } from '../src/gitInfo.js'
 import { normalize, type Workspace } from '../src/workspace.js'
@@ -73,5 +74,43 @@ describe('gitInfo', () => {
     expect(issueUrl('8-checkouts', 'https://github.com/me/remote')).toBe('https://github.com/me/remote/issues/8')
     expect(issueUrl('8-x', 'https://gitlab.com/me/r')).toBe('https://gitlab.com/me/r/-/issues/8')
     expect(issueUrl('master', 'https://github.com/me/remote')).toBeNull()
+  })
+})
+
+describe('projectGroups', () => {
+  const c = (path: string, label: string, slot: number, uses: string[] = [], branch = 'main') =>
+    ({ path, repo: label.replace(/-\d+$/, ''), slot, label, branch, issueUrl: null, uses: uses.map((w) => ({ key: 'K', workspace: w, service: 's', port: 1, status: 'ok' })), usedBy: [] }) as Checkout
+  const P = 'C:/Git/P/ws'
+  const list = [
+    c(`${P}/server`, 'server', 1, [`${P}/web`]),
+    c(`${P}/web`, 'web', 1, [`${P}/server`]),
+    c(`${P}/unity`, 'unity', 1, [`${P}/server`]),
+    c(`${P}.wt/server-2`, 'server-2', 2, [], '9-x'),
+    c(`${P}.wt/web-2`, 'web-2', 2, [`${P}.wt/server-2`], '9-x'),
+    // Points at the main server: joins the main group.
+    c(`${P}.wt/admin-3`, 'admin-3', 3, [`${P}/server`], '7-y'),
+    c(`${P}.wt/unity-2`, 'unity-2', 2, [], 'feat'),
+  ]
+  const mainOf = (path: string) => `${P}/${path.split('/').pop()!.replace(/-\d+$/, '')}`
+
+  it('groups the checkouts linked together, named after the project', () => {
+    const dir = join(root, 'proj')
+    mkdirSync(dir, { recursive: true })
+    writeFileSync(join(dir, 'TRA-SIM.code-workspace'), '{}')
+    const groups = projectGroups(list, (p) => join(dir, basename(p)))
+    expect(groups.map((g) => [g.label, g.branch, g.paths.map((p) => p.split('/').pop())])).toEqual([
+      ['TRA-SIM · main + slot 3', null, ['server', 'web', 'unity', 'admin-3']],
+      ['TRA-SIM · slot 2', '9-x', ['server-2', 'web-2']],
+      ['TRA-SIM · slot 2', 'feat', ['unity-2']],
+    ])
+    // No such folder on disk: its name.
+    expect(projectGroups(list, mainOf)[0]!.name).toBe('ws')
+  })
+
+  it('names a project from its package name when no .code-workspace', () => {
+    const dir = join(root, 'pkg')
+    mkdirSync(dir, { recursive: true })
+    writeFileSync(join(dir, 'package.json'), '{"name":"@tra-sim/workspace"}')
+    expect(projectName(dir)).toBe('tra-sim')
   })
 })

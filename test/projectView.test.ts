@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { MachineResponse, StateResponse } from '../src/api.js'
-import { checkoutGroups, targetLabel } from '../src/checkoutGroups.js'
+import { projectView, targetLabel } from '../src/projectView.js'
 
 const web = 'C:/Git/ws/web'
 const server = 'C:/Git/ws.wt/server-2'
@@ -26,14 +26,20 @@ const machine = {
     { port: 2999, status: 'moved', movedTo: 3000, expected: { workspace: web, service: 'web' }, holder: { kind: 'other', pid: 80, name: 'Docker.exe', cmd: '' } },
     { port: 3003, status: 'free', expected: { workspace: web, service: 'docs' }, holder: null },
   ],
+  groups: [{ id: web, name: 'ws', label: 'ws', branch: 'master', issueUrl: null, paths: [web] }],
 } as MachineResponse
 
-describe('checkoutGroups', () => {
-  const groups = checkoutGroups(state, machine)
+describe('projectView', () => {
+  const groups = projectView(state, machine)
+  const views = groups.flatMap((g) => g.checkouts)
 
-  it('groups services, ports and processes started by hand by checkout', () => {
-    expect(groups.map((g) => g.checkout.label)).toEqual(['web', 'server-2'])
-    const [w] = groups
+  it('groups services, ports and processes started by hand by checkout, checkouts by group', () => {
+    expect(groups.map((g) => [g.group.label, g.checkouts.map((v) => v.checkout.label)])).toEqual([
+      ['ws', ['web']],
+      // The machine feed doesn't know it yet: alone.
+      ['server-2', ['server-2']],
+    ])
+    const [w] = views
     expect(w!.services.map((r) => [r.service, r.port, r.process?.id, r.portState?.status, r.moved?.port])).toEqual([
       ['docs', 3003, undefined, 'free', undefined],
       ['web', 3000, 'web/web', 'ok', 2999],
@@ -42,7 +48,7 @@ describe('checkoutGroups', () => {
   })
 
   it('names a link target by its checkout label', () => {
-    expect(targetLabel(groups, server, 'api')).toBe('server-2/api')
-    expect(targetLabel(groups, 'C:/Git/ws/other', 'api')).toBe('other/api')
+    expect(targetLabel(views, server, 'api')).toBe('server-2/api')
+    expect(targetLabel(views, 'C:/Git/ws/other', 'api')).toBe('other/api')
   })
 })

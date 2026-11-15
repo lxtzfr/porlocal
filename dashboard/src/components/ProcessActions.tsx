@@ -2,7 +2,7 @@ import { ActionIcon, Badge, Group, Text, Tooltip } from '@mantine/core'
 import { IconFileText, IconPin, IconPlayerPlay, IconPlayerStop, IconRefresh, IconTrash } from '@tabler/icons-react'
 import type { ReactNode } from 'react'
 import { useProcessAction, type ProcessAction } from '../api'
-import type { Proc } from '../../../src/checkoutGroups'
+import type { Proc } from '../../../src/projectView'
 import { isRunning } from '../format'
 
 export const STATUS_COLOR: Record<Proc['status'], string> = { ready: 'teal', starting: 'yellow', exited: 'gray', stopped: 'gray' }

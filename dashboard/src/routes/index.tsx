@@ -2,9 +2,9 @@ import { Stack } from '@mantine/core'
 import { createFileRoute } from '@tanstack/react-router'
 import { useState } from 'react'
 import { useDaemonState, useMachine } from '../api'
-import { checkoutGroups } from '../../../src/checkoutGroups'
+import { projectView } from '../../../src/projectView'
 import { Cmd } from '../components/cells'
-import { CheckoutCard } from '../components/CheckoutCard'
+import { GroupCard } from '../components/GroupCard'
 import { DevicesSection } from '../components/DevicesSection'
 import { LogDrawer } from '../components/LogDrawer'
 import { Empty, Section } from '../components/Section'
@@ -16,14 +16,14 @@ function Dashboard() {
   const machine = useMachine()
   const [logId, setLogId] = useState<string | null>(null)
   const s = state.data
-  const groups = s ? checkoutGroups(s, machine.data) : []
+  const groups = s ? projectView(s, machine.data) : []
   return (
     <>
       <Stack gap="md">
         {!s ? (
           <Empty>Loading…</Empty>
         ) : groups.length ? (
-          groups.map((g) => <CheckoutCard key={g.checkout.path} g={g} groups={groups} onLogs={setLogId} />)
+          groups.map((g) => <GroupCard key={g.group.id} group={g} all={groups} onLogs={setLogId} />)
         ) : (
           <Section title="Checkouts">
             <Empty>Nothing known yet: <Cmd>porlocal run &lt;service&gt;</Cmd> in a checkout.</Empty>

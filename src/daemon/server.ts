@@ -13,6 +13,7 @@ import { Supervisor, UserError, type RunRequest } from './supervisor.js'
 import { findZombies } from './zombies.js'
 import { projectPorts } from './projectPorts.js'
 import { cachedWorkspaces, checkouts } from './checkouts.js'
+import { projectGroups } from './projectGroups.js'
 
 export const VERSION = '0.1.0'
 
@@ -39,7 +40,8 @@ export function startServer(sup: Supervisor, adb: Adb, log: Logger, shutdown: ()
     const zombies = findZombies(sup.state, table, listening, [process.pid])
     const ports = projectPorts(sup.state, table, listening, zombies)
     const listeningSet = new Set([...listening.values()].flat())
-    return { zombies, ports, checkouts: checkouts({ state: sup.state, zombies, listening: listeningSet, workspace }) }
+    const list = checkouts({ state: sup.state, zombies, listening: listeningSet, workspace })
+    return { zombies, ports, checkouts: list, groups: projectGroups(list, (path) => workspace(path).main) }
   }
   const workspace = cachedWorkspaces(resolveWorkspace)
   const zombies = () => machine().zombies

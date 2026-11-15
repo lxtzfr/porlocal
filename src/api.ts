@@ -115,11 +115,25 @@ export interface Checkout {
   usedBy: { workspace: string; label: string; key: string; service: string; status: LinkStatus }[]
 }
 
+/** Checkouts linked together: a project's main checkouts, the slots of one ticket. */
+export interface ProjectGroup {
+  id: string
+  /** The project (`TRA-SIM`): its `*.code-workspace`, package name or folder. */
+  name: string
+  /** `TRA-SIM`, `TRA-SIM · slot 2`, `TRA-SIM · main + slot 2` (a slot using a main checkout). */
+  label: string
+  /** When all its checkouts are on the same one. */
+  branch: string | null
+  issueUrl: string | null
+  paths: string[]
+}
+
 /** What the daemon reads of the machine (one process table + port scan): `/api/events` `machine`. */
 export interface MachineResponse {
   zombies: Zombie[]
   ports: ProjectPort[]
   checkouts: Checkout[]
+  groups: ProjectGroup[]
 }
 
 export interface StateResponse {

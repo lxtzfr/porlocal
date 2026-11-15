@@ -8,7 +8,7 @@ import { DAEMON_LOG, DAEMON_URL, TRAY_LOG } from './paths.js'
 import { readMsysParents } from './procs.js'
 import { resolveWorkspace, workspaceLabel } from './workspace.js'
 import type { Lease, MachineResponse, Managed, ProjectPort, StateResponse, Zombie } from './api.js'
-import { checkoutGroups, targetLabel } from './checkoutGroups.js'
+import { projectView, targetLabel } from './projectView.js'
 
 const USAGE = `porlocal: leases ports, supervises dev servers, maps device ports (optional: projects run without it)
 
@@ -156,29 +156,36 @@ async function main(): Promise<void> {
     }
     case 'status': {
       const [state, machine] = await Promise.all([api<StateResponse>('/api/state'), api<MachineResponse>('/api/machine')])
-      const groups = checkoutGroups(state, machine)
+      const groups = projectView(state, machine)
       if (args.flags.json) return console.log(JSON.stringify(groups, null, 2))
       if (!groups.length) return console.log('nothing known yet (porlocal run in a checkout)')
-      for (const g of groups) {
-        const c = g.checkout
-        const slot = c.slot === 1 ? 'main checkout' : c.slot ? `slot ${c.slot}` : 'outside slots'
-        console.log(`${c.label}  ${slot}${c.branch ? `  branch ${c.branch}` : ''}${c.issueUrl ? `  ${c.issueUrl}` : ''}  ${c.path}`)
-        const rows = [
-          ...g.services.map((r) => [
-            r.service,
-            String(r.port),
-            r.process ? r.process.status : r.portState?.status === 'hand' ? 'started by hand' : 'not running',
-            [
-              r.portState?.status === 'conflict' && r.portState.holder ? `port taken by ${r.portState.holder.kind === 'porlocal' ? r.portState.holder.id : `${r.portState.holder.name} ${r.portState.holder.pid}`}` : '',
-              r.moved ? `moved from ${r.moved.port}` : '',
-              r.process?.owner ? `owner ${r.process.owner.name} ${r.process.owner.pid}` : '',
-            ].filter(Boolean).join(', '),
-          ]),
-          ...g.hand.map((z) => [z.name, z.ports.join(' ') || '-', 'started by hand', `PID ${z.pid}${z.orphan ? ', orphan' : ''}`]),
-          ...c.uses.map((l) => [`${l.key} ->`, l.port ? String(l.port) : '-', l.status, `${targetLabel(groups, l.workspace, l.service)}${l.status === 'stale' ? `, .env.local has ${l.written ?? 'nothing'}` : ''}`]),
-          ...c.usedBy.map((u) => [`<- ${u.label}`, '', u.status, u.key]),
-        ]
-        if (rows.length) printTable(rows.map((r) => ['  ' + r[0], ...r.slice(1)]))
+      const views = groups.flatMap((g) => g.checkouts)
+      for (const { group, checkouts } of groups) {
+        console.log(`${group.label}${group.branch ? `  branch ${group.branch}` : ''}${group.issueUrl ? `  ${group.issueUrl}` : ''}`)
+        for (const v of checkouts) {
+          const c = v.checkout
+          const slot = c.slot === 1 ? 'main checkout' : c.slot ? `slot ${c.slot}` : 'outside slots'
+          console.log(`  ${c.label}  ${slot}${c.branch && c.branch !== group.branch ? `  branch ${c.branch}` : ''}  ${c.path}`)
+          const rows = [
+            ...v.services.map((r) => [
+              r.service,
+              String(r.port),
+              r.process ? r.process.status : r.portState?.status === 'hand' ? 'started by hand' : 'not running',
+              [
+                r.portState?.status === 'conflict' && r.portState.holder ? `port taken by ${r.portState.holder.kind === 'porlocal' ? r.portState.holder.id : `${r.portState.holder.name} ${r.portState.holder.pid}`}` : '',
+                r.moved ? `moved from ${r.moved.port}` : '',
+                r.process?.owner ? `owner ${r.process.owner.name} ${r.process.owner.pid}` : '',
+              ].filter(Boolean).join(', '),
+            ]),
+            ...v.hand.map((z) => [z.name, z.ports.join(' ') || '-', 'started by hand', `PID ${z.pid}${z.orphan ? ', orphan' : ''}`]),
+            ...c.uses.map((l) => {
+              const leaves = !group.paths.includes(l.workspace)
+              return [`${l.key} ->`, l.port ? String(l.port) : '-', l.status, `${targetLabel(views, l.workspace, l.service)}${leaves ? ' (out of this group)' : ''}${l.status === 'stale' ? `, .env.local has ${l.written ?? 'nothing'}` : ''}`]
+            }),
+            ...c.usedBy.filter((u) => !group.paths.includes(u.workspace)).map((u) => [`<- ${u.label}`, '', u.status, u.key]),
+          ]
+          if (rows.length) printTable(rows.map((r) => ['    ' + r[0], ...r.slice(1)]))
+        }
         console.log('')
       }
       return
