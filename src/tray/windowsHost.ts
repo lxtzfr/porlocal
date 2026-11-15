@@ -43,8 +43,9 @@ function Apply($view) {
   foreach ($b in $view.balloons) { $tray.ShowBalloonTip(5000, $b.title, $b.text, [System.Windows.Forms.ToolTipIcon]::Info) }
 }
 
-# Stdin is read asynchronously and checked by a UI timer: a blocking read would freeze the message loop.
-$stdin = [Console]::In
+# Stdin is read asynchronously and checked by a UI timer: a blocking read would freeze the message loop (clicks
+# unanswered). Not [Console]::In: its ReadLineAsync blocks (a synchronized reader); a StreamReader's does not.
+$stdin = New-Object System.IO.StreamReader ([Console]::OpenStandardInput()), ([Text.Encoding]::UTF8)
 $pending = $stdin.ReadLineAsync()
 $timer = New-Object System.Windows.Forms.Timer
 $timer.Interval = 100
