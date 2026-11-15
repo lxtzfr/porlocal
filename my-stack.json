@@ -1,7 +1,7 @@
 {
   "kits": {
     "core": {
-      "sha": "e8fc1fcd7b4e36d08678be1dc3345f9cc8da5347"
+      "sha": "d1ffd5e312b6176bd6ac5cb2ad12995bfd3d3646"
     }
   },
   "local": [
@@ -11,8 +11,8 @@
     "claude/my-stack/core/CLAUDE.md": "sha256:490b03a0562af5e725fd004aa1fb081f038c085d5a3619545d4c81343d171d87",
     "claude/my-stack/core/my-stack.md": "sha256:1077f58e6f73ea797e6951a1053d69def41dcb6538adc562dc24832038f5b6c5",
     "claude/my-stack/core/sentry.md": "sha256:c734bb50043f3436b9bba616bfcec7f10fd3f19f6d97319bf4a98e83d562e311",
-    "claude/my-stack/core/services.md": "sha256:19c0befcdb5638fcb9cfea2ce3cd1ab8f9c7a73895a2c6b3f82a60a3da7f7787",
+    "claude/my-stack/core/services.md": "sha256:0047446027897726f51f7b9644939386bc2f337c01bb796c3fa576d946ebf94e",
     "claude/my-stack/core/tickets.md": "sha256:b1344c833972552fb95d80a2d378ccf239b1c90de5b1ca5e2eb5bc6dca762ade",
-    "claude/my-stack/core/worktrees.md": "sha256:06a43c770d3079748c8e0c8a4b80c00fc0f5ec9e759785f704f4c1064bc7c146"
+    "claude/my-stack/core/worktrees.md": "sha256:f7e7e79f8aadb5fc204ced1d8977812bb8bf4d881523577d6ad773731e4f198f"
   }
 }
