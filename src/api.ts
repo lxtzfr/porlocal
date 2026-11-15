@@ -110,7 +110,7 @@ export interface Checkout {
   repo: string
   /** 1 = the main checkout, n = slot n, null = a checkout outside the slot layout. */
   slot: number | null
-  /** A slot on no branch (wt freed it): no ticket, no group, listed only while something runs there. */
+  /** A slot on no branch (wt freed it): no ticket; a project's free slots form one group. */
   free: boolean
   /** A slot whose repo runs wt: it can be freed or merged from the dashboard. */
   slotActions: boolean
@@ -136,7 +136,7 @@ export interface ProjectGroup {
   /** `TRA-SIM` (a workspace: its `*.code-workspace`, package name or folder), `website` (solo), `porlocal + my-stack`. */
   name: string
   /** `TRA-SIM`, `TRA-SIM · slot 2`, `TRA-SIM · main + slot 2` (a slot using a main checkout),
-   * `TRA-SIM · web-2 (free)`. */
+   * `TRA-SIM · free slots`. */
   label: string
   /** When all its checkouts are on the same one. */
   branch: string | null

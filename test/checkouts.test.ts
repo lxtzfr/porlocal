@@ -49,8 +49,8 @@ describe('checkouts', () => {
 
   it('lists the known checkouts and the siblings using them, with their links', () => {
     const list = run([4100])
-    expect(list.map((c) => c.label)).toEqual(['server', 'web', 'web-2'])
-    const [s, w, w2] = list
+    expect(list.map((c) => c.label)).toEqual(['server', 'server-3', 'web', 'web-2'])
+    const [s, , w, w2] = list
     expect(w!.uses).toEqual([{ key: 'API_URL', workspace: server, service: 'api', port: 4100, status: 'ok' }])
     expect(w2!.uses[0]).toMatchObject({ status: 'stale', written: 'http://localhost:3001', expected: 'http://localhost:4100' })
     expect(s!.usedBy.map((u) => [u.label, u.status])).toEqual([['web', 'ok'], ['web-2', 'stale']])
@@ -60,11 +60,8 @@ describe('checkouts', () => {
     expect(run([]).find((c) => c.label === 'web')!.uses[0]!.status).toBe('down')
   })
 
-  it('lists a free slot only for what runs there, without its detached SHA', () => {
-    const lease = { workspace: server3, service: 'api', port: 4120 } as State['leases'][number]
-    const free = run([4100], [], [lease]).find((c) => c.label === 'server-3')!
-    expect(free).toMatchObject({ free: true, branch: null })
-    expect(run([4100]).map((c) => c.label)).toEqual(['server', 'web', 'web-2'])
+  it('lists a free slot of the project, without its detached SHA', () => {
+    expect(run([4100]).find((c) => c.label === 'server-3')).toMatchObject({ free: true, branch: null })
   })
 })
 
@@ -108,6 +105,7 @@ describe('projectGroups', () => {
     c(`${P}.wt/unity-2`, 'unity-2', 2, [], 'feat'),
     // Free: back on the main server, but no ticket ties it to the main group.
     c(`${P}.wt/web-4`, 'web-4', 4, [`${P}/server`], null),
+    c(`${P}.wt/server-5`, 'server-5', 5, [`${P}/web`], null),
   ]
   const mainOf = (path: string) => `${P}/${path.split('/').pop()!.replace(/-\d+$/, '')}`
 
@@ -120,7 +118,7 @@ describe('projectGroups', () => {
       ['TRA-SIM · main + slot 3', null, ['server', 'web', 'unity', 'admin-3']],
       ['TRA-SIM · slot 2', '9-x', ['server-2', 'web-2']],
       ['TRA-SIM · slot 2', 'feat', ['unity-2']],
-      ['TRA-SIM · web-4 (free)', null, ['web-4']],
+      ['TRA-SIM · free slots', null, ['web-4', 'server-5']],
     ])
     expect(groups.every((g) => g.kind === 'workspace' && g.workspace === dirname(join(dir, 'x')))).toBe(true)
   })
@@ -130,8 +128,8 @@ describe('projectGroups', () => {
     expect(projectGroups(list, mainOf).map((g) => [g.kind, g.label])).toEqual([
       ['linked', 'admin + server + unity + web · main + slot 3'],
       ['linked', 'server + web · slot 2'],
+      ['linked', 'server + web · free slots'],
       ['solo', 'unity · slot 2'],
-      ['solo', 'web · web-4 (free)'],
     ])
   })
 
