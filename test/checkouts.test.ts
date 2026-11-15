@@ -20,7 +20,7 @@ const web = dir('web')
 const web2 = normalize(join(root + '.wt', 'web-2'))
 mkdirSync(web2, { recursive: true })
 const admin = dir('admin')
-const ENV = '# my-stack services: start\nAPI_URL=http://localhost:4100\n# my-stack services: end\n'
+const ENV = '# local services: start\nAPI_URL=http://localhost:4100\n# local services: end\n'
 writeFileSync(join(web, '.env.local'), ENV)
 writeFileSync(join(web2, '.env.local'), ENV.replace('4100', '3001'))
 for (const path of [server, web, web2, admin]) writeFileSync(join(path, 'package.json'), '{}')

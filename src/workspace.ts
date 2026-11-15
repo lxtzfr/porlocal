@@ -1,10 +1,10 @@
 // A workspace = one checkout as wt (`@lxtzfr/wt`) sees it: a repo's main checkout (n = 1) or one of its slots, with
-// its declared services and env templates (package.json `myStack`). A repo without them still works with
+// its declared services and env templates (package.json `localDev`). A repo without them still works with
 // `porlocal run <name> -- <cmd>`.
 
 import { existsSync, readdirSync } from 'node:fs'
 import { dirname, join } from 'node:path'
-import { declaredPort, myStackConfig, normalize, refTarget as wtRefTarget, resolveCheckout, slotPort, slotsDir, type Checkout, type ServiceDecl } from '@lxtzfr/wt'
+import { declaredPort, projectConfig, normalize, refTarget as wtRefTarget, resolveCheckout, slotPort, slotsDir, type Checkout, type ServiceDecl } from '@lxtzfr/wt'
 
 export { normalize, slotsDir, slotPort }
 
@@ -15,7 +15,7 @@ export interface Workspace extends Checkout {
 
 export function resolveWorkspace(cwd: string): Workspace {
   const checkout = resolveCheckout(cwd)
-  const config = myStackConfig(checkout.path)
+  const config = projectConfig(checkout.path)
   return { ...checkout, services: config.services ?? {}, env: config.env ?? {} }
 }
 

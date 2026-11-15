@@ -51,7 +51,7 @@
       "esbuild"
     ]
   },
-  "myStack": {
+  "localDev": {
     "services": {
       "dashboard": {
         "port": 4090,
@@ -63,6 +63,6 @@
     }
   },
   "dependencies": {
-    "@lxtzfr/wt": "github:lxtzfr/wt#v1.0.0"
+    "@lxtzfr/wt": "github:lxtzfr/wt#v2.0.0"
   }
 }

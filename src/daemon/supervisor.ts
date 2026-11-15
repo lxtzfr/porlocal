@@ -194,7 +194,7 @@ export class Supervisor {
     const label = workspaceLabel(ws)
     const id = `${label}/${req.service}`
     const cmd = req.cmd ?? ws.services[req.service]?.run
-    if (!cmd) throw new UserError(`${label} declares no "${req.service}" with a run command (myStack.services): pass it after --`)
+    if (!cmd) throw new UserError(`${label} declares no "${req.service}" with a run command (localDev.services): pass it after --`)
     // `up` twice is fine: what runs stays as is.
     const current = this.running(ws.path, req.service)
     if (current) return { ...current, notes: ['already running'] }

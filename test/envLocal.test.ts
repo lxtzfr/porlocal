@@ -19,10 +19,10 @@ function layout() {
 describe('block', () => {
   it('keeps hand-written lines below the block and the wt markers', () => {
     const dir = mkdtempSync(join(tmpdir(), 'porlocal-'))
-    writeFileSync(join(dir, '.env.local'), `${START}\nPORT=3000\n# my-stack services: end\nMANUAL=1\n`)
+    writeFileSync(join(dir, '.env.local'), `${START}\nPORT=3000\n# local services: end\nMANUAL=1\n`)
     expect(readBlock(dir)).toEqual({ PORT: '3000' })
     writeBlock(dir, { PORT: '4100' })
-    expect(readFileSync(join(dir, '.env.local'), 'utf-8')).toBe(`${START}\nPORT=4100\n# my-stack services: end\nMANUAL=1\n`)
+    expect(readFileSync(join(dir, '.env.local'), 'utf-8')).toBe(`${START}\nPORT=4100\n# local services: end\nMANUAL=1\n`)
   })
 })
 
@@ -32,7 +32,7 @@ describe('workspace + env', () => {
     const s2 = resolveWorkspace(server2)
     expect(s2.n).toBe(2)
     expect(preferredPort(s2, 'api')).toBe(3011)
-    writeFileSync(join(server2, '.env.local'), `${START}\nDATABASE_URL=postgres://x/app_2\n# my-stack services: end\n`)
+    writeFileSync(join(server2, '.env.local'), `${START}\nDATABASE_URL=postgres://x/app_2\n# local services: end\n`)
     const portOf = (w: string, s: string) => (w === normalize(web) && s === 'web' ? 4100 : preferredPort(resolveWorkspace(w), s))
     expect(resolveEnv(s2, portOf).values).toEqual({ PORT: '3011', WEB_URL: 'http://localhost:4100', DATABASE_URL: 'postgres://x/app_2' })
   })
