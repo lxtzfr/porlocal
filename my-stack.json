@@ -1,7 +1,7 @@
 {
   "kits": {
     "core": {
-      "sha": "63cd86fe9259e9cccc3399afceab02d424898faf"
+      "sha": "e8fc1fcd7b4e36d08678be1dc3345f9cc8da5347"
     }
   },
   "local": [
@@ -9,7 +9,7 @@
   ],
   "files": {
     "claude/my-stack/core/CLAUDE.md": "sha256:490b03a0562af5e725fd004aa1fb081f038c085d5a3619545d4c81343d171d87",
-    "claude/my-stack/core/my-stack.md": "sha256:d7830a0541d9dadc80d869a86cce231558028cb6141ae98970251b4844ba94d8",
+    "claude/my-stack/core/my-stack.md": "sha256:1077f58e6f73ea797e6951a1053d69def41dcb6538adc562dc24832038f5b6c5",
     "claude/my-stack/core/sentry.md": "sha256:c734bb50043f3436b9bba616bfcec7f10fd3f19f6d97319bf4a98e83d562e311",
     "claude/my-stack/core/services.md": "sha256:19c0befcdb5638fcb9cfea2ce3cd1ab8f9c7a73895a2c6b3f82a60a3da7f7787",
     "claude/my-stack/core/tickets.md": "sha256:b1344c833972552fb95d80a2d378ccf239b1c90de5b1ca5e2eb5bc6dca762ade",
