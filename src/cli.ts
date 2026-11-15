@@ -66,7 +66,8 @@ function defaultService(): string {
 
 function describe(p: Managed): string {
   const state = p.status === 'ready' ? 'ready' : p.status === 'starting' ? 'still starting (porlocal logs to follow)' : `${p.status}${p.exitCode != null ? ` (code ${p.exitCode})` : ''}`
-  return `${p.id} on http://localhost:${p.port}: ${state}, PID ${p.pid}, owner ${p.owner ? `${p.owner.name} (${p.owner.pid})` : 'none'}`
+  const head = `${p.id} on http://localhost:${p.port}: ${state}, PID ${p.pid}, owner ${p.owner ? `${p.owner.name} (${p.owner.pid})` : 'none'}`
+  return [head, ...(p.notes ?? []).map((note) => `  ${note}`)].join('\n')
 }
 
 async function follow(id: string, lines: number): Promise<void> {
@@ -95,7 +96,6 @@ async function run(args: Args, service?: string): Promise<Managed> {
     graceSec: args.flags.grace ? Number(args.flags.grace) : undefined,
   })
   console.log(describe(p))
-  for (const note of p.notes ?? []) console.log(`  ${note}`)
   return p
 }
 
