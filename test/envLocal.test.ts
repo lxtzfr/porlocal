@@ -1,22 +1,11 @@
 import { execFileSync } from 'node:child_process'
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { dependsOn, expandCommand, readBlock, resolveEnv, writeBlock } from '../src/envLocal.js'
 import { normalize, preferredPort, resolveWorkspace } from '../src/workspace.js'
-
-const START = '# my-stack services: start (rewritten by `pnpm wt env`; override a key on a line below the block)'
-
-function repo(parent: string, name: string, myStack: object) {
-  const dir = join(parent, name)
-  mkdirSync(dir, { recursive: true })
-  writeFileSync(join(dir, 'package.json'), JSON.stringify({ myStack }))
-  execFileSync('git', ['init', '-q', '-b', 'main', dir])
-  execFileSync('git', ['-C', dir, 'add', '-A'])
-  execFileSync('git', ['-C', dir, '-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-q', '-m', 'init'])
-  return dir
-}
+import { repo, START } from './fixtures.js'
 
 function layout() {
   const root = mkdtempSync(join(tmpdir(), 'porlocal-'))

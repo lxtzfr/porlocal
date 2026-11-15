@@ -1,7 +1,7 @@
 {
   "kits": {
     "core": {
-      "sha": "6f6b71e8cf38bb791b10e7e434ad23cfd1976ce9"
+      "sha": "fddb6fd91d8ebb6fd60046c5629506a7ddbb1dfd"
     }
   },
   "local": [
@@ -12,13 +12,13 @@
     "claude/my-stack/core/my-stack.md": "sha256:7e5683b709dd79e33c9df626b7264690091d77702293da00363179ed88bdc94f",
     "claude/my-stack/core/sentry.md": "sha256:c734bb50043f3436b9bba616bfcec7f10fd3f19f6d97319bf4a98e83d562e311",
     "claude/my-stack/core/services.md": "sha256:19c0befcdb5638fcb9cfea2ce3cd1ab8f9c7a73895a2c6b3f82a60a3da7f7787",
-    "claude/my-stack/core/tickets.md": "sha256:b8c76dfc06caeddc537bd22c300878ef82c4b6308a2ff41de697e5dfc0200ef3",
+    "claude/my-stack/core/tickets.md": "sha256:7810a6654dc1ba5b437f58484d5a7ea888b7b7e82db9655fc23948ba4dbc2655",
     "claude/my-stack/core/worktrees.md": "sha256:8c1a9c137bada66613c3e4d66becc72bc072f0e04b978f3db10d7032f183e80d",
     "scripts/my-stack/wt/bin/wt.mjs": "sha256:62a6ffa5642393b4ab796ae858cc6bb0789a1d8bfcfab8ac32a4ca631791de22",
     "scripts/my-stack/wt/lib/issue.mjs": "sha256:561d6b3271ec90904d70350d94822aead155d3e9c8935874e48a0bcf295e0983",
     "scripts/my-stack/wt/lib/run.mjs": "sha256:f3f052bfbb1f40f2e701eed6c0d7da00de0171a3cfb351a2f1622e6492e4c787",
     "scripts/my-stack/wt/lib/services.mjs": "sha256:c88242db913c45651782ca61e949cc2606964bdee24bf730d96656b65cff8527",
     "scripts/my-stack/wt/lib/setup.mjs": "sha256:fb4d6c75ad831915ce90fc567118afabc2f176aef0ac1555f22e7e3468b178d5",
-    "scripts/my-stack/wt/lib/slots.mjs": "sha256:ff9e77bcd1d87317e5abfa7f5557333809b3bf5a724e51a9f920ae05f1e9e8d5"
+    "scripts/my-stack/wt/lib/slots.mjs": "sha256:af4542efe3b3fa1e181f148cb1a7e9c3a5ab11c1e109d8135422064403a5f044"
   }
 }
