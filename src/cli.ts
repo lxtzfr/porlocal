@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { spawn } from 'node:child_process'
 import { autostartStatus, disableAutostart, enableAutostart } from './autostart.js'
-import { api, ApiError, daemonUp, ensureDaemon } from './client.js'
+import { api, ApiError, daemonUp, ensureDaemon, stopDaemon } from './client.js'
 import { DAEMON_LOG, DAEMON_URL } from './paths.js'
 import { readMsysParents } from './procs.js'
 import { resolveWorkspace, workspaceLabel } from './workspace.js'
@@ -112,7 +112,10 @@ async function main(): Promise<void> {
 
   if (command === 'daemon') {
     if (sub === 'status') return console.log((await daemonUp()) ? `running at ${DAEMON_URL} (log: ${DAEMON_LOG})` : 'not running')
-    if (sub === 'stop') return void (await api('/api/shutdown', {}).catch(() => console.log('not running')))
+    if (sub === 'stop') {
+      const pid = await stopDaemon()
+      return console.log(pid === null ? 'not running' : `stopped${pid ? ` (PID ${pid})` : ''}: what it launched keeps running`)
+    }
     if (sub === 'autostart') {
       const mode = args._[2]
       if (mode === 'on') enableAutostart()

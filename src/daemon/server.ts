@@ -71,9 +71,10 @@ export function startServer(sup: Supervisor, adb: Adb, log: Logger, shutdown: ()
       log.info(`killed zombie PID ${z.pid} (${z.name}, ${z.checkout}${z.ports.length ? `, ports ${z.ports.join(' ')}` : ''})`)
       return z
     },
+    // Exits just after answering: the caller waits for this PID to be gone (stopDaemon).
     'POST /api/shutdown': () => {
       setTimeout(shutdown, 100)
-      return { ok: true }
+      return { ok: true, pid: process.pid }
     },
   }
 
