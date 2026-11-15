@@ -37,6 +37,9 @@ export function remoteWebUrl(main: string): string | null {
   return https ? `https://${https[1]}` : null
 }
 
+/** `https://github.com/lxtzfr/website` -> `{ slug: 'lxtzfr/website', url }`. */
+export const remoteOf = (web: string | null) => (web ? { slug: new URL(web).pathname.replace(/^\/|\/$/g, ''), url: web } : null)
+
 /** The issue a `<n>-<slug>` branch works on (the tickets convention), as a link on `origin`. */
 export function issueUrl(branch: string | null, web: string | null): string | null {
   const n = branch?.match(/^(\d+)-/)?.[1]

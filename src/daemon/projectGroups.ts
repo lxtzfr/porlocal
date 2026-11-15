@@ -20,7 +20,7 @@ const slotPart = (c: Checkout) => (c.slot === 1 ? 'main' : c.slot ? `slot ${c.sl
 
 /**
  * The checkouts linked together (by their env, either way) form a group: the main checkouts of a project, the slots of
- * a ticket over several repos. From the links, not the slot numbers: `wt link` can tie `web-2` to `server-3`.
+ * a ticket over several repos, a solo repo. From the links, not the slot numbers: `wt link` can tie `web-2` to `server-3`.
  */
 export function projectGroups(checkouts: Checkout[], mainOf: (path: string) => string): ProjectGroup[] {
   const parent = new Map(checkouts.map((c) => [c.path, c.path]))
@@ -37,13 +37,20 @@ export function projectGroups(checkouts: Checkout[], mainOf: (path: string) => s
   for (const c of checkouts) members.set(find(c.path), [...(members.get(find(c.path)) ?? []), c])
 
   const groups = [...members.values()].map((list): ProjectGroup & { order: number } => {
+    // A folder only holding repos side by side (`C:/Git/lxtzfr`) names no project: only a workspace repo does.
     const dir = dirname(mainOf(list[0]!.path))
-    const name = existsSync(dir) ? projectName(dir) : basename(dir)
+    const workspace = existsSync(join(dir, '.git')) ? dir : null
+    // A repo goes by its remote (`lxtzfr/website`): the folder name alone says little.
+    const repos = [...new Set(list.map((c) => c.remote?.slug ?? c.repo))].sort()
+    const kind = workspace ? 'workspace' : repos.length === 1 ? 'solo' : 'linked'
+    const name = workspace ? projectName(workspace) : repos.join(' + ')
     const parts = [...new Set(list.map(slotPart))]
     const branches = new Set(list.map((c) => c.branch))
     const branch = branches.size === 1 ? list[0]!.branch : null
     return {
       id: list.map((c) => c.path).sort()[0]!,
+      kind,
+      workspace,
       name,
       label: parts.length === 1 && parts[0] === 'main' ? name : `${name} · ${parts.join(' + ')}`,
       branch,

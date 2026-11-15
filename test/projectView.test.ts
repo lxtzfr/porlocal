@@ -26,7 +26,7 @@ const machine = {
     { port: 2999, status: 'moved', movedTo: 3000, expected: { workspace: web, service: 'web' }, holder: { kind: 'other', pid: 80, name: 'Docker.exe', cmd: '' } },
     { port: 3003, status: 'free', expected: { workspace: web, service: 'docs' }, holder: null },
   ],
-  groups: [{ id: web, name: 'ws', label: 'ws', branch: 'master', issueUrl: null, paths: [web] }],
+  groups: [{ id: web, kind: 'workspace', workspace: 'C:/Git/ws', name: 'ws', label: 'ws', branch: 'master', issueUrl: null, paths: [web] }],
 } as MachineResponse
 
 describe('projectView', () => {

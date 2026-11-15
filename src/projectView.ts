@@ -25,7 +25,7 @@ export interface CheckoutView {
 const basename = (path: string) => path.split('/').pop() ?? path
 
 // The state feed (1 s) can show a checkout before the machine feed (5 s) knows it.
-const bare = (path: string): Checkout => ({ path, repo: basename(path), slot: null, label: basename(path), branch: null, issueUrl: null, uses: [], usedBy: [] })
+const bare = (path: string): Checkout => ({ path, repo: basename(path), slot: null, label: basename(path), remote: null, branch: null, issueUrl: null, uses: [], usedBy: [] })
 
 /** Everything porlocal knows, checkout by checkout. */
 export function checkoutViews(state: StateResponse, machine: MachineResponse | undefined): CheckoutView[] {
@@ -80,7 +80,7 @@ export function projectView(state: StateResponse, machine: MachineResponse | und
   // A checkout the machine feed doesn't know yet: alone until its next snapshot.
   for (const v of views.filter((x) => !placed.has(x.checkout.path))) {
     const c = v.checkout
-    groups.push({ group: { id: c.path, name: c.repo, label: c.label, branch: c.branch, issueUrl: c.issueUrl, paths: [c.path] }, checkouts: [v] })
+    groups.push({ group: { id: c.path, kind: 'solo', workspace: null, name: c.repo, label: c.label, branch: c.branch, issueUrl: c.issueUrl, paths: [c.path] }, checkouts: [v] })
   }
   return groups.filter((g) => g.checkouts.length)
 }
