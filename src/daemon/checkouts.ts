@@ -1,7 +1,7 @@
 import { existsSync } from 'node:fs'
 import type { Checkout, CheckoutLink, LinkStatus, State, Zombie } from '../api.js'
 import { envRefs, readBlock, resolveEnv } from '../envLocal.js'
-import { currentBranch, issueUrl, remoteWebUrl } from '../gitInfo.js'
+import { currentBranch, issueUrl, remoteOf, remoteWebUrl } from '../gitInfo.js'
 import { preferredPort, siblingCheckouts, workspaceLabel, type Workspace } from '../workspace.js'
 
 export interface CheckoutsInput {
@@ -49,7 +49,8 @@ export function checkouts({ state, zombies, listening, workspace }: CheckoutsInp
   const list = [...paths].filter(existsSync).map((path) => {
     const ws = workspace(path)
     const branch = currentBranch(path)
-    return { path, repo: ws.repo, slot: ws.n, label: workspaceLabel(ws), branch, issueUrl: issueUrl(branch, remoteWebUrl(ws.main)), uses: linksOf(ws), usedBy: [] } as Checkout
+    const web = remoteWebUrl(ws.main)
+    return { path, repo: ws.repo, slot: ws.n, label: workspaceLabel(ws), remote: remoteOf(web), branch, issueUrl: issueUrl(branch, web), uses: linksOf(ws), usedBy: [] } as Checkout
   })
   const byPath = new Map(list.map((c) => [c.path, c]))
   for (const c of list) {

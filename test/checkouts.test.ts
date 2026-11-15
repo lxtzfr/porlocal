@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest'
 import type { Checkout, State, Zombie } from '../src/api.js'
 import { projectGroups, projectName } from '../src/daemon/projectGroups.js'
 import { checkouts } from '../src/daemon/checkouts.js'
-import { currentBranch, issueUrl, remoteWebUrl } from '../src/gitInfo.js'
+import { currentBranch, issueUrl, remoteOf, remoteWebUrl } from '../src/gitInfo.js'
 import { normalize, type Workspace } from '../src/workspace.js'
 
 // Slots live in `<parent>.wt/<repo>-<n>`, shared by every repo of the parent.
@@ -71,6 +71,7 @@ describe('gitInfo', () => {
     mkdirSync(join(main, '.git'))
     writeFileSync(join(main, '.git', 'config'), '[core]\n\tbare = false\n[remote "origin"]\n\turl = git@github.com:me/remote.git\n')
     expect(remoteWebUrl(main)).toBe('https://github.com/me/remote')
+    expect(remoteOf(remoteWebUrl(main))).toEqual({ slug: 'me/remote', url: 'https://github.com/me/remote' })
     expect(issueUrl('8-checkouts', 'https://github.com/me/remote')).toBe('https://github.com/me/remote/issues/8')
     expect(issueUrl('8-x', 'https://gitlab.com/me/r')).toBe('https://gitlab.com/me/r/-/issues/8')
     expect(issueUrl('master', 'https://github.com/me/remote')).toBeNull()
@@ -79,7 +80,7 @@ describe('gitInfo', () => {
 
 describe('projectGroups', () => {
   const c = (path: string, label: string, slot: number, uses: string[] = [], branch = 'main') =>
-    ({ path, repo: label.replace(/-\d+$/, ''), slot, label, branch, issueUrl: null, uses: uses.map((w) => ({ key: 'K', workspace: w, service: 's', port: 1, status: 'ok' })), usedBy: [] }) as Checkout
+    ({ path, repo: label.replace(/-\d+$/, ''), slot, label, remote: null, branch, issueUrl: null, uses: uses.map((w) => ({ key: 'K', workspace: w, service: 's', port: 1, status: 'ok' })), usedBy: [] }) as Checkout
   const P = 'C:/Git/P/ws'
   const list = [
     c(`${P}/server`, 'server', 1, [`${P}/web`]),

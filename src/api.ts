@@ -109,6 +109,8 @@ export interface Checkout {
   /** 1 = the main checkout, n = slot n, null = a checkout outside the slot layout. */
   slot: number | null
   label: string
+  /** `origin` as `lxtzfr/website` and its web page; null without one (or a host not served over https). */
+  remote: { slug: string; url: string } | null
   branch: string | null
   issueUrl: string | null
   uses: CheckoutLink[]

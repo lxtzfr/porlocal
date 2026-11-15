@@ -62,6 +62,16 @@ function UsedByBadge({ u }: { u: CheckoutView['checkout']['usedBy'][number] }) {
   )
 }
 
+/** The repo by its remote (`TRA-SIM/server`), a link to its page; the folder name without one. */
+function RepoName({ c, size }: { c: CheckoutView['checkout']; size?: string }) {
+  if (!c.remote) return <Text fw={700} size={size}>{c.repo}</Text>
+  return (
+    <Anchor href={c.remote.url} target="_blank" rel="noopener" fw={700} size={size} c="inherit">
+      {c.remote.slug}
+    </Anchor>
+  )
+}
+
 function CheckoutHeader({ v, ctx }: { v: CheckoutView; ctx: Ctx }) {
   const c = v.checkout
   const g = ctx.group.group
@@ -71,7 +81,7 @@ function CheckoutHeader({ v, ctx }: { v: CheckoutView; ctx: Ctx }) {
     <Stack gap={4}>
       <Group justify="space-between" wrap="nowrap">
         <Group gap="sm" wrap="nowrap">
-          {g.kind !== 'solo' && <Text fw={700}>{c.repo}</Text>}
+          {g.kind !== 'solo' && <RepoName c={c} />}
           {g.label === g.name && c.slot === 1 ? null : <Badge variant="outline" size="sm" color={c.slot === 1 ? 'blue' : 'grape'}>{slotLabel(c.slot)}</Badge>}
           {c.branch && c.branch !== g.branch && <Branch name={c.branch} issueUrl={c.issueUrl} />}
         </Group>
@@ -202,7 +212,14 @@ export function GroupCard({ group, all, onLogs }: { group: GroupView; all: Group
   return (
     <Card withBorder radius="md" padding="md">
       <Group gap="sm" mb="xs">
-        <Title order={2} size="h4">{g.label}</Title>
+        {/* A solo repo's title is its remote: a link to its page, as a repo name is elsewhere. */}
+        {g.kind === 'solo' && group.checkouts[0]?.checkout.remote ? (
+          <Anchor href={group.checkouts[0].checkout.remote.url} target="_blank" rel="noopener" c="inherit">
+            <Title order={2} size="h4">{g.label}</Title>
+          </Anchor>
+        ) : (
+          <Title order={2} size="h4">{g.label}</Title>
+        )}
         {g.workspace && (
           <Tooltip label={`Umbrella project: its repos live in the workspace repo ${g.workspace}`} multiline maw={420}>
             <Badge variant="outline" color="gray" size="sm">workspace</Badge>

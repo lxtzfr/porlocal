@@ -40,7 +40,8 @@ export function projectGroups(checkouts: Checkout[], mainOf: (path: string) => s
     // A folder only holding repos side by side (`C:/Git/lxtzfr`) names no project: only a workspace repo does.
     const dir = dirname(mainOf(list[0]!.path))
     const workspace = existsSync(join(dir, '.git')) ? dir : null
-    const repos = [...new Set(list.map((c) => c.repo))].sort()
+    // A repo goes by its remote (`lxtzfr/website`): the folder name alone says little.
+    const repos = [...new Set(list.map((c) => c.remote?.slug ?? c.repo))].sort()
     const kind = workspace ? 'workspace' : repos.length === 1 ? 'solo' : 'linked'
     const name = workspace ? projectName(workspace) : repos.join(' + ')
     const parts = [...new Set(list.map(slotPart))]

@@ -165,7 +165,7 @@ async function main(): Promise<void> {
         for (const v of checkouts) {
           const c = v.checkout
           const slot = c.slot === 1 ? 'main checkout' : c.slot ? `slot ${c.slot}` : 'outside slots'
-          console.log(`  ${c.label}  ${slot}${c.branch && c.branch !== group.branch ? `  branch ${c.branch}` : ''}  ${c.path}`)
+          console.log(`  ${c.remote?.slug ?? c.repo}${c.slot !== 1 ? ` (${c.label})` : ''}  ${slot}${c.branch && c.branch !== group.branch ? `  branch ${c.branch}` : ''}  ${c.path}`)
           const rows = [
             ...v.services.map((r) => [
               r.service,
