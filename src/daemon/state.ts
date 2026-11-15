@@ -44,9 +44,9 @@ export interface Managed {
   stopReason?: string
   startedAt: number
   logFile: string
-  /** A port it reads (`{url:...}`) changed since it started. */
-  needsRestart?: boolean
   adopted?: boolean
+  /** What the run did beyond starting it (a port move, dependents restarted): in the API answer, never persisted. */
+  notes?: string[]
 }
 
 export interface State {

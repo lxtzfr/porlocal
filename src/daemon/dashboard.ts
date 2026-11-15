@@ -54,7 +54,7 @@ async function refresh() {
   const running = (p) => p.status === 'ready' || p.status === 'starting';
   document.getElementById('processes').innerHTML = table(['Service', 'Port', 'Status', 'Owner', 'PID', 'Up', 'Checkout', ''],
     s.processes.sort((a, b) => a.id.localeCompare(b.id)).map((p) => [
-      '<td><b>' + esc(p.id) + '</b>' + (p.needsRestart ? ' <span class="warn" title="a port it reads moved">restart needed</span>' : '') + '</td>',
+      '<td><b>' + esc(p.id) + '</b></td>',
       '<td><a href="http://localhost:' + p.port + '" target="_blank" rel="noopener">' + p.port + '</a></td>',
       '<td><span class="badge ' + esc(p.status) + '">' + esc(p.status) + (p.exitCode != null && p.status === 'exited' ? ' ' + p.exitCode : '') + '</span>' + (p.stopReason && p.status === 'stopped' ? ' <span class="muted">' + esc(p.stopReason) + '</span>' : '') + '</td>',
       '<td>' + owner(p) + '</td>', '<td>' + p.pid + '</td>', '<td>' + (running(p) ? ago(p.startedAt) : '') + '</td>',

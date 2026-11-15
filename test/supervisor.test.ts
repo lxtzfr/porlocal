@@ -53,26 +53,33 @@ afterAll(() => {
 })
 
 describe('supervisor', { timeout: 60_000 }, () => {
-  it('a taken preferred port is an error, --new-port moves it and rewrites the dependents', async () => {
+  it('a taken port moves (said, dependents rewritten and restarted), back on the declared one once free', async () => {
     const w = await run(web, 'web')
     expect(w.status).toBe('ready')
-    expect(readFileSync(join(web, '.env.local'), 'utf-8')).toContain(`API_URL=http://localhost:${SERVER_PORT}`)
+    const apiUrl = () => readFileSync(join(web, '.env.local'), 'utf-8').match(/API_URL=(.*)/)?.[1]
+    expect(apiUrl()).toBe(`http://localhost:${SERVER_PORT}`)
 
     const blocker = await hold(SERVER_PORT)
-    await expect(run(server, 'api')).rejects.toThrow(UserError)
-    await expect(run(server, 'api')).rejects.toThrow(/--new-port/)
+    await expect(run(server, 'api', { keepPort: true })).rejects.toThrow(UserError)
 
-    const s = await run(server, 'api', { newPort: true })
+    const s = await run(server, 'api')
     expect(s.port).not.toBe(SERVER_PORT)
     expect(s.status).toBe('ready')
-    expect(readFileSync(join(web, '.env.local'), 'utf-8')).toContain(`API_URL=http://localhost:${s.port}`)
-    expect(sup.find(w.id)?.needsRestart).toBe(true)
-    blocker.close()
+    expect(s.notes?.[0]).toMatch(new RegExp(`port ${SERVER_PORT} is taken by .*: on ${s.port} instead`))
+    expect(s.notes?.[1]).toMatch(/web: \.env\.local now points at \d+, restarting web/)
+    expect(apiUrl()).toBe(`http://localhost:${s.port}`)
+    await until(() => sup.find(w.id)?.pid !== w.pid && sup.find(w.id)?.status === 'ready')
+    expect((await run(server, 'api')).notes).toEqual(['already running'])
 
-    // The lease sticks: the next run of server keeps the moved port, even with its preferred one free again.
+    blocker.close()
     sup.stop(s.id)
     await until(() => isFree(s.port))
-    expect((await sup.lease(resolveWorkspace(server), 'api')).port).toBe(s.port)
+    const back = await run(server, 'api')
+    expect(back.port).toBe(SERVER_PORT)
+    expect(back.notes?.[0]).toBe(`back on its declared port ${SERVER_PORT}`)
+    expect(apiUrl()).toBe(`http://localhost:${SERVER_PORT}`)
+    sup.stop(back.id)
+    await until(() => isFree(back.port))
   })
 
   it('stops the whole tree after the grace delay once the owner dies', async () => {

@@ -9,7 +9,7 @@ import type { Lease, Managed } from './daemon/state.js'
 
 const USAGE = `porlocal: leases ports, supervises dev servers, maps device ports (optional: projects run without it)
 
-  porlocal run [<service>] [--new-port] [--owner <pid>|none] [--grace <s>] [--restart-dependents] [-f] [-- <cmd>]
+  porlocal run [<service>] [--keep-port] [--owner <pid>|none] [--grace <s>] [-f] [-- <cmd>]
   porlocal up                          every declared service of this checkout (package.json myStack.services)
   porlocal ls [--json]                 processes, ports, owners
   porlocal stop|restart|keep|forget <service|id>      keep: no owner any more (runs until stopped)
@@ -91,11 +91,11 @@ async function run(args: Args, service?: string): Promise<Managed> {
     parentHints: readMsysParents(),
     ownerPid: owner === undefined ? undefined : owner === 'none' ? null : Number(owner),
     env: process.env,
-    newPort: !!args.flags['new-port'],
+    keepPort: !!args.flags['keep-port'],
     graceSec: args.flags.grace ? Number(args.flags.grace) : undefined,
-    restartDependents: !!args.flags['restart-dependents'],
   })
   console.log(describe(p))
+  for (const note of p.notes ?? []) console.log(`  ${note}`)
   return p
 }
 
@@ -145,7 +145,7 @@ async function main(): Promise<void> {
       printTable([
         ['id', 'port', 'status', 'pid', 'owner', 'checkout'],
         ...state.processes.map((p) => [
-          p.id + (p.needsRestart ? ' (restart needed)' : ''),
+          p.id,
           String(p.port),
           p.status + (p.ownerLostAt ? ' (owner gone)' : ''),
           String(p.pid),

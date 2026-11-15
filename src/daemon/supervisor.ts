@@ -20,9 +20,9 @@ export interface RunRequest {
   /** Explicit owner PID, or null for none (runs until stopped). */
   ownerPid?: number | null
   env: Record<string, string>
-  newPort?: boolean
+  /** A taken port is an error instead of a move. */
+  keepPort?: boolean
   graceSec?: number
-  restartDependents?: boolean
 }
 
 export class UserError extends Error {}
@@ -82,10 +82,23 @@ export class Supervisor {
     return this.state.processes.find((p) => p.workspace === workspace && p.service === service && (p.status === 'starting' || p.status === 'ready'))
   }
 
-  private describeHolder(port: number): string {
+  // Names the holder; flags the same checkout started by hand (`pnpm dev` in a terminal): porlocal never points other
+  // repos at a process it did not launch, so that one is to stop. Not when the path is a repo nested in it (workspace).
+  private describeHolder(port: number, ws: Workspace): string {
     const holder = portHolder(port)
     if (!holder) return 'another process'
-    const info = processTable().get(holder.pid)
+    const table = processTable()
+    const info = table.get(holder.pid)
+    const root = `${ws.path.toLowerCase()}/`
+    let current = info
+    for (let depth = 0; current && depth < 5; depth++, current = table.get(current.ppid)) {
+      const cmd = current.cmd.replace(/\\/g, '/').toLowerCase()
+      const at = cmd.indexOf(root)
+      if (at < 0) continue
+      const next = cmd.slice(at + root.length).split(/[/"\s]/)[0]
+      if (next && existsSync(join(ws.path, next, '.git'))) break
+      return `PID ${holder.pid} (${info?.name ?? '?'}, this checkout started outside porlocal: stop it)`
+    }
     return `PID ${holder.pid}${info ? ` (${info.name})` : ''}`
   }
 
@@ -97,35 +110,35 @@ export class Supervisor {
     throw new UserError(`no free port in ${DYNAMIC_RANGE.from}-${DYNAMIC_RANGE.to}`)
   }
 
-  /** The workspace + service's port: its lease, else the port `wt` gives it, else a dynamic one. Never moves silently. */
-  async lease(ws: Workspace, service: string, newPort = false): Promise<{ port: number; moved: boolean }> {
+  /**
+   * The workspace + service's port: its declared one (`wt`'s) whenever free, else the one it holds, else a dynamic
+   * one. Never silent: `blocked` says why it is not on its declared port; the caller rewrites what reads it.
+   */
+  async lease(ws: Workspace, service: string, newPort = false): Promise<{ port: number; moved: boolean; blocked?: string }> {
     const preferred = preferredPort(ws, service)
     const existing = this.leaseOf(ws.path, service)
+    const running = this.running(ws.path, service)
+    if (running) return { port: running.port, moved: false }
     const leasedToOther = (port: number) => this.state.leases.find((l) => l.port === port && !(l.workspace === ws.path && l.service === service))
-    let blocked: string | null = null
-
-    if (existing) {
-      if (this.running(ws.path, service) || (await isFree(existing.port))) return { port: existing.port, moved: false }
-      blocked = `port ${existing.port} (leased to ${workspaceLabel(ws)}/${service}) is taken by ${this.describeHolder(existing.port)}`
-    } else if (preferred !== undefined) {
-      const other = leasedToOther(preferred)
-      if (!other && (await isFree(preferred))) {
-        this.state.leases.push({ workspace: ws.path, service, port: preferred, preferred })
-        this.save()
-        this.log.info(`lease ${workspaceLabel(ws)}/${service} -> ${preferred}`)
-        return { port: preferred, moved: false }
-      }
-      blocked = `port ${preferred} is ${other ? `leased to ${other.workspace} (${other.service})` : `taken by ${this.describeHolder(preferred)}`}`
+    let blocked: string | undefined
+    for (const port of new Set([preferred, existing?.port].filter((p): p is number => p !== undefined))) {
+      const other = leasedToOther(port)
+      if (!other && (await isFree(port))) return this.setLease(ws, service, port, port === preferred ? undefined : blocked)
+      blocked ??= `port ${port} is ${other ? `leased to ${other.workspace} (${other.service})` : `taken by ${this.describeHolder(port, ws)}`}`
     }
-    if (blocked && !newPort) throw new UserError(`${blocked}: free it, or pass --new-port to take another one`)
+    if (blocked && !newPort) throw new UserError(`${blocked}: free it (or take another port: run without --keep-port, lease --new-port)`)
+    return this.setLease(ws, service, await this.pickDynamic(), blocked)
+  }
 
-    const port = await this.pickDynamic()
-    const previous = existing?.port ?? preferred
+  private setLease(ws: Workspace, service: string, port: number, blocked?: string): { port: number; moved: boolean; blocked?: string } {
+    const existing = this.leaseOf(ws.path, service)
+    const previous = existing?.port ?? preferredPort(ws, service)
     if (existing) existing.port = port
-    else this.state.leases.push({ workspace: ws.path, service, port, preferred })
+    else this.state.leases.push({ workspace: ws.path, service, port, preferred: preferredPort(ws, service) })
     this.save()
-    this.log.info(`lease ${workspaceLabel(ws)}/${service} -> ${port}${blocked ? ` (${blocked})` : ''}`)
-    return { port, moved: previous !== undefined && previous !== port }
+    const moved = previous !== undefined && previous !== port
+    if (moved || !existing) this.log.info(`lease ${workspaceLabel(ws)}/${service} -> ${port}${blocked ? ` (${blocked})` : ''}`)
+    return { port, moved, blocked }
   }
 
   release(workspace: string, service: string): Lease | undefined {
@@ -146,25 +159,24 @@ export class Supervisor {
     return values
   }
 
-  /** A port moved: rewrite the `.env.local` of every checkout reading it, flag (or restart) what runs there. */
-  private propagate(ws: Workspace, service: string, port: number, restart: boolean): void {
+  /** A port moved: rewrite the `.env.local` of every checkout reading it and restart what porlocal runs there. */
+  private propagate(ws: Workspace, service: string, port: number): string[] {
+    const notes: string[] = []
     for (const path of siblingCheckouts(ws)) {
       if (path === ws.path) continue
       const other = resolveWorkspace(path)
       if (!dependsOn(other, ws.path, service)) continue
       this.writeEnv(other)
-      for (const p of this.state.processes.filter((p) => p.workspace === other.path && (p.status === 'starting' || p.status === 'ready'))) {
-        if (restart) {
-          this.log.info(`${p.id}: restarting, ${workspaceLabel(ws)}/${service} moved to ${port}`)
-          void this.restart(p.id).catch((err) => this.log.error(`${p.id}: restart failed`, err))
-        } else {
-          p.needsRestart = true
-          this.log.warn(`${p.id}: reads ${workspaceLabel(ws)}/${service}, now on ${port}: restart it`)
-        }
+      const running = this.state.processes.filter((p) => p.workspace === other.path && (p.status === 'starting' || p.status === 'ready'))
+      for (const p of running) {
+        this.log.info(`${p.id}: restarting, ${workspaceLabel(ws)}/${service} moved to ${port}`)
+        void this.restart(p.id).catch((err) => this.log.error(`${p.id}: restart failed`, err))
       }
+      notes.push(`${workspaceLabel(other)}: .env.local now points at ${port}${running.length ? `, restarting ${running.map((p) => p.service).join(', ')}` : ''}`)
     }
     this.save()
     this.onPortChange(ws.path, service, port)
+    return notes
   }
 
   // The process writes straight into its log file (no pipe through the daemon): it keeps running and logging when the
@@ -182,12 +194,16 @@ export class Supervisor {
     const id = `${label}/${req.service}`
     const cmd = req.cmd ?? ws.services[req.service]?.run
     if (!cmd) throw new UserError(`${label} declares no "${req.service}" with a run command (myStack.services): pass it after --`)
+    // `up` twice is fine: what runs stays as is.
     const current = this.running(ws.path, req.service)
-    if (current) throw new UserError(`${id} is already running (PID ${current.pid}, port ${current.port})`)
+    if (current) return { ...current, notes: ['already running'] }
 
-    const { port, moved } = await this.lease(ws, req.service, req.newPort)
+    const { port, moved, blocked } = await this.lease(ws, req.service, !req.keepPort)
     const values = this.writeEnv(ws)
-    if (moved) this.propagate(ws, req.service, port, req.restartDependents ?? false)
+    const notes = [
+      ...(blocked ? [`${blocked}: on ${port} instead`] : moved ? [`back on its declared port ${port}`] : []),
+      ...(moved ? this.propagate(ws, req.service, port) : []),
+    ]
 
     let owner: Managed['owner'] = null
     if (req.ownerPid === undefined) {
@@ -253,7 +269,7 @@ export class Supervisor {
       this.log.info(`${id}: listening on ${port}`)
       this.save()
     }
-    return managed
+    return { ...managed, notes }
   }
 
   stop(id: string, reason = 'stopped by request'): Managed {
