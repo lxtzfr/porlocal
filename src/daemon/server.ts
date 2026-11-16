@@ -10,6 +10,7 @@ import { eventStream, Feed } from './events.js'
 import { followLog, tailText } from './logTail.js'
 import { dashboardFile } from './static.js'
 import { Supervisor, UserError, type RunRequest } from './supervisor.js'
+import { cachedWorktrees } from './projects.js'
 import { findZombies } from './zombies.js'
 import { projectPorts } from './projectPorts.js'
 import { cachedWorkspaces, checkouts } from './checkouts.js'
@@ -41,10 +42,11 @@ export function startServer(sup: Supervisor, adb: Adb, log: Logger, shutdown: ()
     const zombies = findZombies(sup.state, table, listening, [process.pid])
     const ports = projectPorts(sup.state, table, listening, zombies)
     const listeningSet = new Set([...listening.values()].flat())
-    const list = checkouts({ state: sup.state, zombies, listening: listeningSet, workspace })
+    const list = checkouts({ state: sup.state, zombies, listening: listeningSet, workspace, worktrees })
     return { zombies, ports, checkouts: list, groups: projectGroups(list, (path) => workspace(path).main) }
   }
   const workspace = cachedWorkspaces(resolveWorkspace)
+  const worktrees = cachedWorktrees()
   const zombies = () => machine().zombies
   sup.zombies = zombies
   const state = (): StateResponse => ({
