@@ -5,6 +5,7 @@ import { basename } from 'node:path'
 import { openUrl } from './opener.js'
 import { trayHostSupported } from './tray/host.js'
 import { DAEMON_LOG, DAEMON_URL, TRAY_LOG } from './paths.js'
+import { registerProject } from '@lxtzfr/wt'
 import { readMsysParents } from './procs.js'
 import { resolveWorkspace, workspaceLabel } from './workspace.js'
 import type { Lease, MachineResponse, Managed, ProjectPort, StateResponse, Zombie } from './api.js'
@@ -19,6 +20,7 @@ const USAGE = `porlocal: leases ports, supervises dev servers, maps device ports
   porlocal stop|restart|keep|forget <service|id>      keep: no owner any more (runs until stopped)
   porlocal logs <service|id> [-f] [-n <lines>]
   porlocal ports [<port>] [--json]     the projects' ports: ok, free, moved, started by hand, taken by another app
+  porlocal register [<dir>...]         add the repos to wt's map of projects (run and lease do it by themselves)
   porlocal zombies [--json] | kill <pid>  dev processes of these checkouts not run by porlocal (a pnpm dev by hand, left over)
   porlocal lease <service> [--new-port] | release <service>
   porlocal device bind <service|repo/service> --port <device port> [--device <serial>]
@@ -232,6 +234,14 @@ async function main(): Promise<void> {
           p.holder && p.holder.kind !== 'porlocal' ? p.holder.cmd.slice(0, 60) : '',
         ]),
       ])
+      return
+    }
+    case 'register': {
+      for (const dir of args._.length > 1 ? args._.slice(1) : [process.cwd()]) {
+        const { main } = resolveWorkspace(dir)
+        registerProject(main)
+        console.log(`registered ${main}`)
+      }
       return
     }
     case 'zombies': {

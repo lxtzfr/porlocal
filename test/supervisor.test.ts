@@ -9,6 +9,7 @@ import { repo } from './fixtures.js'
 // Real processes and ports: the daemon's state goes to a temp PORLOCAL_HOME, set before paths.ts is first imported.
 const home = mkdtempSync(join(tmpdir(), 'porlocal-home-'))
 process.env.PORLOCAL_HOME = home
+process.env.WT_HOME = home // wt's project map: never the real ~/.wt
 const { Supervisor, UserError } = await import('../src/daemon/supervisor.js')
 const { isAlive, killTree } = await import('../src/procs.js')
 const { isFree } = await import('../src/ports.js')

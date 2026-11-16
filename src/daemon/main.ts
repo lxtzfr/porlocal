@@ -2,6 +2,7 @@
 
 import { createLogger } from '../log.js'
 import { Adb } from './adb.js'
+import { seedProjects } from './projects.js'
 import { startServer } from './server.js'
 import { Supervisor } from './supervisor.js'
 
@@ -9,6 +10,7 @@ const log = createLogger('daemon')
 const sup = new Supervisor(createLogger('supervisor'))
 const adb = new Adb(sup.state, (b) => sup.portOf(b.workspace, b.service), () => sup.save(), createLogger('adb'))
 sup.onPortChange = (workspace, service) => adb.refresh(workspace, service)
+seedProjects(sup.state)
 
 // Launched processes outlive the daemon on purpose (re-adopted on its next start): stopping it is not stopping them.
 function shutdown(): void {

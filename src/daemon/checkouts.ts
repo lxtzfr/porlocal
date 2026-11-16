@@ -11,18 +11,21 @@ export interface CheckoutsInput {
   listening: Set<number>
   /** A (cached) `resolveWorkspace`: each call spawns git. */
   workspace: (path: string) => Workspace
+  /** Every worktree of the projects in wt's user map: shown whether anything runs there or not. */
+  worktrees?: () => string[]
 }
 
 /**
  * The checkouts porlocal knows (what it leases, runs, binds, or sees started by hand), the ones their env points at,
  * and the siblings whose env points at them; each with its branch and links. One level deep: never the whole disk.
  */
-export function checkouts({ state, zombies, listening, workspace }: CheckoutsInput): Checkout[] {
+export function checkouts({ state, zombies, listening, workspace, worktrees = () => [] }: CheckoutsInput): Checkout[] {
   const portOf = (path: string, service: string) =>
     state.leases.find((l) => l.workspace === path && l.service === service)?.port ?? (existsSync(path) ? preferredPort(workspace(path), service) : undefined)
 
   const known = new Set([...state.leases, ...state.processes, ...state.bindings].map((x) => x.workspace))
   for (const z of zombies) known.add(z.checkout)
+  for (const path of worktrees()) known.add(path)
   // A free slot still points at the main checkouts: listed as a slot of the project, never as a link target.
   const isFree = (path: string) => {
     const ws = workspace(path)

@@ -1,6 +1,7 @@
 import { spawn, type ChildProcess } from 'node:child_process'
 import { appendFileSync, closeSync, existsSync, mkdirSync, openSync, renameSync, statSync } from 'node:fs'
 import { join } from 'node:path'
+import { registerProject } from '@lxtzfr/wt'
 import { dependsOn, expandCommand, resolveEnv, writeBlock, type PortOf } from '../envLocal.js'
 import type { Logger } from '../log.js'
 import { DYNAMIC_RANGE, LOGS_DIR } from '../paths.js'
@@ -119,6 +120,7 @@ export class Supervisor {
    * one. Never silent: `blocked` says why it is not on its declared port; the caller rewrites what reads it.
    */
   async lease(ws: Workspace, service: string, newPort = false): Promise<{ port: number; moved: boolean; blocked?: string }> {
+    registerProject(ws.main)
     const preferred = preferredPort(ws, service)
     const existing = this.leaseOf(ws.path, service)
     const running = this.running(ws.path, service)
@@ -194,6 +196,7 @@ export class Supervisor {
 
   async run(req: RunRequest): Promise<Managed> {
     const ws = resolveWorkspace(req.cwd)
+    registerProject(ws.main)
     const label = workspaceLabel(ws)
     const id = `${label}/${req.service}`
     const cmd = req.cmd ?? ws.services[req.service]?.run

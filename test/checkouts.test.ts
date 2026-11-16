@@ -63,6 +63,13 @@ describe('checkouts', () => {
     expect(list.find((c) => c.label === 'server')!.usedBy.map((u) => [u.label, u.status])).toEqual([['web', 'ok']])
   })
 
+  it('lists every worktree of the projects in the user map, whether anything runs there or not', () => {
+    const none = checkouts({ state, zombies: [], listening: new Set(), workspace: (p) => workspaces[p]! })
+    expect(none.map((c) => c.path)).not.toContain(admin)
+    const all = checkouts({ state, zombies: [], listening: new Set(), workspace: (p) => workspaces[p]!, worktrees: () => [admin] })
+    expect(all.map((c) => c.path)).toContain(admin)
+  })
+
   it('flags a link whose target does not listen', () => {
     expect(run([]).find((c) => c.label === 'web')!.uses[0]!.status).toBe('down')
   })
