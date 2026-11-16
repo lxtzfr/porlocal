@@ -42,7 +42,7 @@ same `.env.local` block `wt env` writes. The slot layout, links, services and th
   tree (`killTree`), re-adoption by PID or port holder.
 - The API stays local-only: Host header checked, POST JSON only (no cross-site form).
 - Live data is pushed, never polled by a client: a new view reads a `Feed` (`/api/events`) or its own SSE stream.
-- After each change under `src/` or `dashboard/`: `pnpm build`, then restart the running daemon (`node dist/cli.js
+- After each change under `src/` or `dashboard/`, Claude itself runs `pnpm build`, then restarts the running daemon (`node dist/cli.js
   daemon stop`, the next command starts the new one; what it launched keeps running). The daemon runs `dist/`: a stale
   build hides the fix (a "fixed" bug that still happens is a stale daemon first).
 - Paths go through `normalize()` (realpath, `/`): git prints long paths, a cwd may be a Windows 8.3 short one.
