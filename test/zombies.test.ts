@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { State } from '../src/api.js'
-import { findZombies } from '../src/daemon/zombies.js'
+import { findZombies, leftOverOf } from '../src/daemon/zombies.js'
 import type { ProcInfo } from '../src/procs.js'
 
 const table = (procs: Array<[number, number, string, string]>) =>
@@ -58,5 +58,15 @@ est.js start --watch`],
       // The server under a watcher: killed from the top of its tree, orphan through it.
       [44, 40, 'C:/Git/ws/web', [3020], true],
     ])
+  })
+
+  it('a launch is refused for a listener of its checkout or a left-over watcher of the same command, not for another service', () => {
+    const z = findZombies(state, t, listening, [90], repo)
+    expect(leftOverOf(z, 'C:/Git/ws/web', 'pnpm dev').map((p) => p.pid)).toEqual([11, 44])
+    expect(leftOverOf(z, 'C:/Git/ws/server', 'pnpm dev')).toEqual([])
+    // Not listening: only a process whose command line carries the run command's arguments.
+    const idle = z.map((p) => ({ ...p, ports: [] }))
+    expect(leftOverOf(idle, 'C:/Git/ws/web', 'pnpm dev').map((p) => p.pid)).toEqual([11])
+    expect(leftOverOf(idle, 'C:/Git/ws/web', 'pnpm start:dev')).toEqual([])
   })
 })

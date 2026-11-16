@@ -10,6 +10,16 @@ const APPS = /^(code|code - insiders|cursor|claude|unity|unity hub|idea64|websto
 const OWN = /porlocal[^"\s]*[\\/]dist[\\/](daemon|tray)[\\/]main\.js/i
 export const isPorlocalProcess = (cmd: string) => OWN.test(cmd)
 
+/**
+ * What of the checkout's zombies would race a launch of `runCmd` there: one listening (whatever it is, the port is
+ * ours to take) or a left-over watcher not listening right now, whose command line carries the run command's arguments
+ * (`pnpm start:dev` rebuilds and rebinds on the next file change). Another service of the checkout is left alone.
+ */
+export function leftOverOf(zombies: Zombie[], checkout: string, runCmd: string): Zombie[] {
+  const args = runCmd.trim().split(/\s+/).slice(1)
+  return zombies.filter((z) => z.checkout === checkout && (z.ports.length > 0 || args.every((a) => z.cmd.includes(a))))
+}
+
 const isRepo = (path: string) => existsSync(join(path, '.git'))
 
 /**

@@ -5,9 +5,10 @@ import { dependsOn, expandCommand, resolveEnv, writeBlock, type PortOf } from '.
 import type { Logger } from '../log.js'
 import { DYNAMIC_RANGE, LOGS_DIR } from '../paths.js'
 import { isFree, portHolder, waitListening } from '../ports.js'
-import { detectOwner, isAlive, killTree, processTable } from '../procs.js'
+import { ancestry, detectOwner, isAlive, killTree, processTable } from '../procs.js'
 import { preferredPort, resolveWorkspace, siblingCheckouts, workspaceLabel, type Workspace } from '../workspace.js'
-import type { Lease, Managed, State } from '../api.js'
+import type { Lease, Managed, State, Zombie } from '../api.js'
+import { leftOverOf } from './zombies.js'
 import { loadState, saveState } from './state.js'
 
 export interface RunRequest {
@@ -37,6 +38,8 @@ export class Supervisor {
   private readonly children = new Map<string, ChildProcess>()
   private readonly requests = new Map<string, RunRequest>()
   onPortChange: (workspace: string, service: string, port: number) => void = () => {}
+  /** The dev processes of known checkouts porlocal did not launch (set by the daemon, which scans the machine). */
+  zombies: () => Zombie[] = () => []
 
   constructor(private readonly log: Logger) {
     for (const p of this.state.processes) {
@@ -199,6 +202,13 @@ export class Supervisor {
     const current = this.running(ws.path, req.service)
     if (current) return { ...current, notes: ['already running'] }
 
+    // Free port or not: a left-over watcher of this checkout rebuilds and takes it back at its next file change.
+    const leftOver = leftOverOf(this.zombies(), ws.path, cmd)
+    if (leftOver.length) {
+      const names = leftOver.map((z) => `PID ${z.root} (${z.name}${z.ports.length ? `, port ${z.ports.join(' ')}` : ', not listening'}${z.orphan ? ', orphan' : ''})`).join('; ')
+      throw new UserError(`${id}: already there outside porlocal: ${names}. Stop it first (dashboard, or porlocal zombies)`)
+    }
+
     const { port, moved, blocked } = await this.lease(ws, req.service, !req.keepPort)
     const values = this.writeEnv(ws)
     const notes = [
@@ -266,9 +276,16 @@ export class Supervisor {
 
     const ready = await waitListening(port, READY_TIMEOUT_MS, () => managed.status === 'starting')
     if (ready && managed.status === 'starting') {
-      managed.status = 'ready'
-      this.log.info(`${id}: listening on ${port}`)
-      this.save()
+      // Any listener makes the port busy: ready only when it is ours (our tree), else a foreign one took it.
+      const holder = portHolder(port)
+      if (holder && !ancestry(processTable(), holder.pid).some((a) => a.pid === managed.pid) && holder.pid !== managed.pid) {
+        this.stop(id, `port ${port} is held by PID ${holder.pid}, not by this process`)
+        this.log.warn(`${id}: ${managed.stopReason}`)
+      } else {
+        managed.status = 'ready'
+        this.log.info(`${id}: listening on ${port}`)
+        this.save()
+      }
     }
     return { ...managed, notes }
   }

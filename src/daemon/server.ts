@@ -46,6 +46,7 @@ export function startServer(sup: Supervisor, adb: Adb, log: Logger, shutdown: ()
   }
   const workspace = cachedWorkspaces(resolveWorkspace)
   const zombies = () => machine().zombies
+  sup.zombies = zombies
   const state = (): StateResponse => ({
     processes: sup.state.processes.map((p) => ({ ...p, ownerAlive: p.owner ? isAlive(p.owner.pid) : null })),
     leases: sup.state.leases,
