@@ -92,6 +92,14 @@ describe('supervisor', { timeout: 60_000 }, () => {
     expect(sup.find(p.id)?.stopReason).toMatch(/owner .* gone/)
     await until(() => isFree(p.port)) // the shell wrapper and the node server under it
     expect(isAlive(p.pid)).toBe(false)
+    expect(sup.find(p.id)?.ownerLostAt).toBeUndefined()
+
+    // A start from the dashboard after that: the dead owner is dropped, else it would stop again at once.
+    const started = await sup.restart(p.id)
+    expect(started.owner).toBeNull()
+    expect(started.status).toBe('ready')
+    sup.stop(started.id)
+    await until(() => isFree(started.port))
   })
 
   it('re-adopts after a daemon restart, by PID or else by the port holder', async () => {

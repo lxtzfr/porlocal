@@ -9,7 +9,7 @@ export const STATUS_COLOR: Record<Proc['status'], string> = { ready: 'teal', sta
 
 export function Owner({ p, now }: { p: Proc; now: number }) {
   if (!p.owner) return <Text size="sm" c="dimmed">none</Text>
-  const left = p.ownerLostAt ? Math.max(0, Math.round((p.graceMs - (now - p.ownerLostAt)) / 1000)) : null
+  const left = p.ownerLostAt && isRunning(p.status) ? Math.max(0, Math.round((p.graceMs - (now - p.ownerLostAt)) / 1000)) : null
   return (
     <Group gap={6} wrap="nowrap">
       <Text size="sm">{p.owner.name}</Text>

@@ -279,6 +279,7 @@ export class Supervisor {
     if (p.status === 'starting' || p.status === 'ready') {
       p.status = 'stopped'
       p.stopReason = reason
+      delete p.ownerLostAt
       killTree(p.pid)
       this.log.info(`${id}: stopped PID ${p.pid} (${reason})`)
       this.save()
@@ -290,10 +291,13 @@ export class Supervisor {
     const p = this.find(id)
     if (!p) throw new UserError(`unknown process ${id}`)
     const req = this.requests.get(id) ?? { cwd: p.workspace, service: p.service, callerPid: process.pid, ownerPid: p.owner?.pid ?? null, env: process.env as Record<string, string> }
+    // A dead owner (why it was stopped, or a dashboard start long after) would stop the new process again at once.
+    const ownerAlive = p.owner !== null && p.owner !== undefined && isAlive(p.owner.pid)
+    if (p.owner && !ownerAlive) this.log.info(`${id}: owner ${p.owner.name} (${p.owner.pid}) is gone, restarting without owner`)
     this.stop(id, 'restart')
     const until = Date.now() + 10_000
     while (Date.now() < until && !(await isFree(p.port))) await new Promise((r) => setTimeout(r, 300))
-    return this.run({ ...req, ownerPid: p.owner?.pid ?? null })
+    return this.run({ ...req, ownerPid: ownerAlive ? p.owner!.pid : null })
   }
 
   forget(id: string): void {
