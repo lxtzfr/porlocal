@@ -61,7 +61,9 @@ export function checkouts({ state, zombies, listening, workspace }: CheckoutsInp
     return { path, repo: ws.repo, slot: ws.n, free, slotActions: hasSlotActions(ws), label: workspaceLabel(ws), remote: remoteOf(web), branch, issueUrl: issueUrl(branch, web), uses: linksOf(ws), usedBy: [] } as Checkout
   })
   const byPath = new Map(list.map((c) => [c.path, c]))
-  for (const c of list) {
+  // Only a user with something up (not a free slot, not an idle checkout), in the group or out of it.
+  const isUp = (path: string) => state.processes.some((p) => p.workspace === path && (p.status === 'starting' || p.status === 'ready'))
+  for (const c of list.filter((x) => isUp(x.path))) {
     for (const l of c.uses) if (l.workspace !== c.path) byPath.get(l.workspace)?.usedBy.push({ workspace: c.path, label: c.label, key: l.key, service: l.service, status: l.status })
   }
   // Main checkout first, then its slots, repo by repo.

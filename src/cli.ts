@@ -183,7 +183,7 @@ async function main(): Promise<void> {
               const leaves = !group.paths.includes(l.workspace)
               return [`${l.key} ->`, l.port ? String(l.port) : '-', l.status, `${targetLabel(views, l.workspace, l.service)}${leaves ? ' (out of this group)' : ''}${l.status === 'stale' ? `, .env.local has ${l.written ?? 'nothing'}` : ''}`]
             }),
-            ...c.usedBy.filter((u) => !group.paths.includes(u.workspace)).map((u) => [`<- ${u.label}`, '', u.status, u.key]),
+            ...c.usedBy.map((u) => [`<- ${u.label}`, '', u.status, u.key]),
           ]
           if (rows.length) printTable(rows.map((r) => ['    ' + r[0], ...r.slice(1)]))
         }

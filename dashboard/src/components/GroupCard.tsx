@@ -83,8 +83,7 @@ function RepoName({ c, size }: { c: CheckoutView['checkout']; size?: string }) {
 function CheckoutHeader({ v, ctx, title }: { v: CheckoutView; ctx: Ctx; title?: boolean }) {
   const c = v.checkout
   const g = ctx.group.group
-  // Inside the group, `uses` already draws each link: only what comes from another group is worth a "used by".
-  const usedBy = c.usedBy.filter((u) => !g.paths.includes(u.workspace))
+  const usedBy = c.usedBy
   return (
     <Stack gap={4}>
       <Group justify="space-between" wrap="nowrap">

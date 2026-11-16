@@ -53,7 +53,14 @@ describe('checkouts', () => {
     const [s, , w, w2] = list
     expect(w!.uses).toEqual([{ key: 'API_URL', workspace: server, service: 'api', port: 4100, status: 'ok' }])
     expect(w2!.uses[0]).toMatchObject({ status: 'stale', written: 'http://localhost:3001', expected: 'http://localhost:4100' })
-    expect(s!.usedBy.map((u) => [u.label, u.status])).toEqual([['web', 'ok'], ['web-2', 'stale']])
+    // Nothing runs in web or web-2 (nor in the free slot): no "used by".
+    expect(s!.usedBy).toEqual([])
+  })
+
+  it('"used by" lists only the checkouts with something up, in or out of the group', () => {
+    const processes = [{ workspace: web, service: 'web', status: 'ready' }, { workspace: web2, service: 'web', status: 'exited' }]
+    const list = checkouts({ state: { ...state, processes } as unknown as State, zombies: [], listening: new Set([4100]), workspace: (p) => workspaces[p]! })
+    expect(list.find((c) => c.label === 'server')!.usedBy.map((u) => [u.label, u.status])).toEqual([['web', 'ok']])
   })
 
   it('flags a link whose target does not listen', () => {
