@@ -1,6 +1,8 @@
 // The daemon: one per machine, started by the CLI on demand (detached), state in ~/.porlocal.
 
+import { ensureTray } from '../client.js'
 import { createLogger } from '../log.js'
+import { trayHostSupported } from '../tray/host.js'
 import { Adb } from './adb.js'
 import { seedProjects } from './projects.js'
 import { startServer } from './server.js'
@@ -21,6 +23,13 @@ function shutdown(): void {
 }
 
 const server = startServer(sup, adb, log, shutdown)
+// Whoever starts the daemon (CLI, tray menu, login) gets the tray too; it is a no-op when one already runs.
+server.on('listening', () => {
+  if (!trayHostSupported()) return
+  ensureTray()
+    .then((pid) => log.info(`tray running (PID ${pid})`))
+    .catch((err) => log.error('tray did not start', err))
+})
 server.on('error', (err: NodeJS.ErrnoException) => {
   log.error(err.code === 'EADDRINUSE' ? 'another daemon already listens on this port' : 'server error', err)
   process.exit(1)

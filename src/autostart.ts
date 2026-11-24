@@ -19,14 +19,15 @@ export function autostartStatus(): string {
 }
 
 // VBScript: window style 0 = no console flashing at login. `daemon start` goes through ensureDaemon (log file, detach).
+// An older script (daemon, then `tray`) keeps working until autostart is re-enabled.
 export function enableAutostart(): string {
   const file = startupScript()
   const cli = join(dirname(fileURLToPath(import.meta.url)), 'cli.js')
   const quote = (s: string) => `""${s}""`
   mkdirSync(dirname(file), { recursive: true })
   const run = (args: string, wait: boolean) => `shell.Run "${quote(process.execPath)} ${quote(cli)} ${args}", 0, ${wait ? 'True' : 'False'}\r\n`
-  // The daemon first (waited for), then the tray: it comes up green rather than grey.
-  writeFileSync(file, `Set shell = CreateObject("WScript.Shell")\r\n${run('daemon start', true)}${run('tray', false)}`)
+  // The daemon starts the tray itself once it listens.
+  writeFileSync(file, `Set shell = CreateObject("WScript.Shell")\r\n${run('daemon start', false)}`)
   log.info(`daemon and tray start at login: ${file}`)
   return file
 }
