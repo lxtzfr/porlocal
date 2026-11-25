@@ -41,6 +41,8 @@ export interface Managed {
   startedAt: number
   logFile: string
   adopted?: boolean
+  /** Top of the dev command's process tree (a watcher outlives the server it restarts under it). */
+  root?: number
   /** What the run did beyond starting it (a port move, dependents restarted): in the API answer, never persisted. */
   notes?: string[]
 }

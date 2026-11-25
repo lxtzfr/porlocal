@@ -32,7 +32,7 @@ export function trayView(state: StateResponse | null, prev: StateResponse | null
     }
   }
   const live = state.processes.filter((p) => running(p.status)).sort((a, b) => a.id.localeCompare(b.id))
-  const failed = state.processes.filter((p) => p.status === 'exited' && p.exitCode !== 0)
+  const failed = state.processes.filter((p) => p.status === 'exited' && typeof p.exitCode === 'number' && p.exitCode !== 0)
   const orphaned = live.filter((p) => p.ownerLostAt)
   const parts = [`${live.length} running`, failed.length && `${failed.length} exited`, orphaned.length && `${orphaned.length} owner gone`].filter(Boolean)
 

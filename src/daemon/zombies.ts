@@ -23,6 +23,19 @@ export function leftOverOf(zombies: Zombie[], checkout: string, runCmd: string):
 const isRepo = (path: string) => existsSync(join(path, '.git'))
 
 /**
+ * Up through what the dev command spawned (`cmd /c`, pnpm, a watcher), never into a terminal, an app or the system:
+ * killing only the server leaves a watcher that starts it again.
+ */
+export function devTreeRoot(table: Map<number, ProcInfo>, proc: ProcInfo): ProcInfo {
+  let top = proc
+  for (let parent = table.get(top.ppid); parent && parent.pid > 4 && parent !== top; parent = table.get(top.ppid)) {
+    if (APPS.test(parent.name) || isInteractiveShell(parent)) break
+    top = parent
+  }
+  return top
+}
+
+/**
  * Processes of the checkouts porlocal knows (their folder: siblings and `.wt` slots) that porlocal did not launch and
  * that listen on a port or lost their parent: a `pnpm dev` started by hand, a server left by a closed terminal. IDE
  * helpers (tsserver, eslint) also run from a checkout, but neither listen nor lose their parent.
@@ -34,8 +47,10 @@ export function findZombies(state: State, table: Map<number, ProcInfo>, listenin
     roots.add(parent)
     roots.add(`${parent}.wt`)
   }
-  const managed = new Set(state.processes.filter((p) => p.status === 'starting' || p.status === 'ready').map((p) => p.pid))
+  const live = state.processes.filter((p) => p.status === 'starting' || p.status === 'ready')
+  const managed = new Set(live.flatMap((p) => (p.root ? [p.pid, p.root] : [p.pid])))
   // A managed PID can be a wrapper (`cmd /c`) or, re-adopted, the port holder under it: both its tree and its chain.
+  // The tree's root stays: a watcher restart replaces the server under it.
   // A process under any porlocal daemon is skipped too.
   const related = (pid: number) => ancestry(table, pid).some((p) => managed.has(p.pid) || self.includes(p.pid) || isPorlocalProcess(p.cmd))
   const checkoutOf = (proc: ProcInfo): string | null => {
@@ -52,22 +67,11 @@ export function findZombies(state: State, table: Map<number, ProcInfo>, listenin
     return null
   }
 
-  // Up through what the dev command spawned (`cmd /c`, pnpm, a watcher), never into a terminal, an app or the system:
-  // killing only the server leaves a watcher that starts it again.
-  const rootOf = (proc: ProcInfo): ProcInfo => {
-    let top = proc
-    for (let parent = table.get(top.ppid); parent && parent.pid > 4 && parent !== top; parent = table.get(top.ppid)) {
-      if (APPS.test(parent.name) || isInteractiveShell(parent)) break
-      top = parent
-    }
-    return top
-  }
-
   const zombies: Zombie[] = []
   for (const p of table.values()) {
     if (APPS.test(p.name) || related(p.pid)) continue
     const ports = (listening.get(p.pid) ?? []).sort((a, b) => a - b)
-    const root = rootOf(p)
+    const root = devTreeRoot(table, p)
     const orphan = !table.has(root.ppid)
     // One row per tree: what listens, else the orphaned top itself.
     if (!ports.length && !(orphan && root === p)) continue

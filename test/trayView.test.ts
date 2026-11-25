@@ -24,6 +24,10 @@ describe('trayView', () => {
     expect(v.balloons).toEqual([])
   })
 
+  it('stays green when an adopted process ends with an unknown exit code', () => {
+    expect(trayView(state([proc('server/api', 3001, { status: 'exited', exitCode: null })]), null).icon).toBe('ok')
+  })
+
   it('orange with a balloon when a service exits with an error or loses its owner', () => {
     const before = state([proc('web/web', 3000), proc('server/api', 3001)])
     const after = state([proc('web/web', 3000, { status: 'exited', exitCode: 1 }), proc('server/api', 3001, { ownerLostAt: 1 })])

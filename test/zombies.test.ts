@@ -60,6 +60,11 @@ est.js start --watch`],
     ])
   })
 
+  it('a watcher restarting its server under the recorded tree root is still porlocal\'s', () => {
+    const adopted = { ...state, processes: [{ ...state.processes[0]!, pid: 999, root: 40 }] } as unknown as State
+    expect(findZombies(adopted, t, listening, [90], repo).map((p) => p.pid)).not.toContain(44)
+  })
+
   it('a launch is refused for a listener of its checkout or a left-over watcher of the same command, not for another service', () => {
     const z = findZombies(state, t, listening, [90], repo)
     expect(leftOverOf(z, 'C:/Git/ws/web', 'pnpm dev').map((p) => p.pid)).toEqual([11, 44])

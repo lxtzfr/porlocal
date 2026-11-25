@@ -9,7 +9,7 @@ import { isFree, portHolder, waitListening } from '../ports.js'
 import { ancestry, detectOwner, isAlive, killTree, processTable } from '../procs.js'
 import { preferredPort, resolveWorkspace, siblingCheckouts, workspaceLabel, type Workspace } from '../workspace.js'
 import type { Lease, Managed, State, Zombie } from '../api.js'
-import { leftOverOf } from './zombies.js'
+import { devTreeRoot, leftOverOf } from './zombies.js'
 import { loadState, saveState } from './state.js'
 
 export interface RunRequest {
@@ -56,13 +56,25 @@ export class Supervisor {
   }
 
   // The recorded PID can be a wrapper (`cmd /c`, pnpm) gone while the server lives on: fall back to the port holder.
+  // A watcher restarts its server (PID gone, port free for a moment): the tree's root alive means it is still ours.
   private readopt(p: Managed): boolean {
     p.adopted = true
-    if (isAlive(p.pid)) return true
+    const table = processTable()
+    const track = (pid: number) => {
+      const proc = table.get(pid)
+      if (proc) p.root = devTreeRoot(table, proc).pid
+    }
+    if (isAlive(p.pid)) {
+      if (!p.root) track(p.pid)
+      return true
+    }
     const holder = portHolder(p.port)
-    if (!holder) return false
-    p.pid = holder.pid
-    return true
+    if (holder) {
+      p.pid = holder.pid
+      track(holder.pid)
+      return true
+    }
+    return p.root !== undefined && isAlive(p.root)
   }
 
   save(): void {
@@ -209,7 +221,9 @@ export class Supervisor {
     const leftOver = leftOverOf(this.zombies(), ws.path, cmd)
     if (leftOver.length) {
       const names = leftOver.map((z) => `PID ${z.root} (${z.name}${z.ports.length ? `, port ${z.ports.join(' ')}` : ', not listening'}${z.orphan ? ', orphan' : ''})`).join('; ')
-      throw new UserError(`${id}: already there outside porlocal: ${names}. Stop it first (dashboard, or porlocal zombies)`)
+      const lost = this.find(id)?.adopted ? ' porlocal ran it before and lost track of it (a daemon restart, a watcher restart).' : ''
+      const kill = [...new Set(leftOver.map((z) => z.root))].map((root) => `porlocal kill ${root}`).join(' && ')
+      throw new UserError(`${id}: already there outside porlocal: ${names}.${lost} Stop it with \`${kill}\` (its whole tree), then run again. If you did not start it yourself, ask the user first: it may be their own terminal's server`)
     }
 
     const { port, moved, blocked } = await this.lease(ws, req.service, !req.keepPort)
@@ -300,8 +314,8 @@ export class Supervisor {
       p.status = 'stopped'
       p.stopReason = reason
       delete p.ownerLostAt
-      killTree(p.pid)
-      this.log.info(`${id}: stopped PID ${p.pid} (${reason})`)
+      killTree(p.root ?? p.pid)
+      this.log.info(`${id}: stopped PID ${p.root ?? p.pid} (${reason})`)
       this.save()
     }
     return p
