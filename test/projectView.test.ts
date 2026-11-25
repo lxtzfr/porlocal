@@ -19,12 +19,15 @@ const state = {
   adb: false,
 } as unknown as StateResponse
 const machine = {
-  checkouts: [{ path: web, repo: 'web', slot: 1, label: 'web', branch: 'master', issueUrl: null, uses: [], usedBy: [] }],
-  zombies: [{ pid: 70, name: 'node.exe', cmd: 'node server.js', ports: [3005], checkout: web, orphan: false }],
+  checkouts: [{ path: web, repo: 'web', slot: 1, label: 'web', branch: 'master', issueUrl: null, declared: [{ service: 'web', run: 'pnpm dev' }, { service: 'watch', run: 'pnpm watch' }], uses: [], usedBy: [] }],
+  zombies: [
+    { pid: 70, name: 'node.exe', cmd: 'node server.js', ports: [3005], checkout: web, orphan: false },
+    { pid: 71, name: 'node.exe', cmd: 'node docs.js', ports: [3003], checkout: web, orphan: false },
+  ],
   ports: [
     { port: 3000, status: 'ok', expected: { workspace: web, service: 'web' }, holder: { kind: 'porlocal', id: 'web/web', pid: 51 } },
     { port: 2999, status: 'moved', movedTo: 3000, expected: { workspace: web, service: 'web' }, holder: { kind: 'other', pid: 80, name: 'Docker.exe', cmd: '' } },
-    { port: 3003, status: 'free', expected: { workspace: web, service: 'docs' }, holder: null },
+    { port: 3003, status: 'hand', expected: { workspace: web, service: 'docs' }, holder: { kind: 'zombie', pid: 71, name: 'node.exe', cmd: 'node docs.js', checkout: web } },
   ],
   groups: [{ id: web, kind: 'workspace', workspace: 'C:/Git/ws', name: 'ws', label: 'ws', branch: 'master', issueUrl: null, paths: [web] }],
 } as MachineResponse
@@ -41,9 +44,13 @@ describe('projectView', () => {
     ])
     const [w] = views
     expect(w!.services.map((r) => [r.service, r.port, r.process?.id, r.portState?.status, r.moved?.port])).toEqual([
-      ['docs', 3003, undefined, 'free', undefined],
+      // Started by hand on its port: the port shows, and that process is this row (not one of its own).
+      ['docs', 3003, undefined, 'hand', undefined],
+      // Declared, never run: listed with its command, no port yet.
+      ['watch', null, undefined, undefined, undefined],
       ['web', 3000, 'web/web', 'ok', 2999],
     ])
+    expect(w!.services.map((r) => r.run)).toEqual([undefined, 'pnpm watch', 'pnpm dev'])
     expect(w!.hand.map((z) => z.pid)).toEqual([70])
   })
 

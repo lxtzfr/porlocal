@@ -117,6 +117,12 @@ export function startServer(sup: Supervisor, adb: Adb, log: Logger, shutdown: ()
       log.info(`${ws.name}: .env.local rewritten on request`)
       return { keys: Object.keys(values) }
     },
+    // A service the checkout declares, started as `porlocal run <service>` does; no owner: it runs until stopped.
+    'POST /api/checkout/run': (body) => {
+      const ws = knownCheckout(body.path)
+      if (!ws.services[body.service]?.run) throw new UserError(`${ws.name} declares no "${body.service}" with a run command`)
+      return sup.run({ cwd: ws.path, service: body.service, callerPid: process.pid, ownerPid: null, env: {} })
+    },
     'POST /api/checkout/wt': (body) => runWt(knownCheckout(body.path), body.command, log),
     // Exits just after answering: the caller waits for this PID to be gone (stopDaemon).
     'POST /api/shutdown': () => {

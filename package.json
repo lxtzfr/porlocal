@@ -56,6 +56,9 @@
       "dashboard": {
         "port": 4090,
         "run": "pnpm dashboard:dev"
+      },
+      "build-watch": {
+        "run": "pnpm dev"
       }
     },
     "env": {

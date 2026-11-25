@@ -171,16 +171,17 @@ async function main(): Promise<void> {
           const rows = [
             ...v.services.map((r) => [
               r.service,
-              String(r.port),
-              r.process ? r.process.status : r.portState?.status === 'hand' ? 'started by hand' : 'not running',
+              r.port === null ? '-' : String(r.port),
+              r.hand?.length ? 'started by hand' : r.process ? r.process.status : 'not running',
               [
                 r.portState?.status === 'conflict' && r.portState.holder ? `port taken by ${r.portState.holder.kind === 'porlocal' ? r.portState.holder.id : `${r.portState.holder.name} ${r.portState.holder.pid}`}` : '',
                 r.moved ? `moved from ${r.moved.port}` : '',
+                r.hand?.length ? `PID ${r.hand.map((z) => z.pid).join(', ')}${r.hand.some((z) => z.orphan) ? ', orphan' : ''}, $ ${r.hand[0]!.cmd}` : '',
                 r.process?.owner ? `owner ${r.process.owner.name} ${r.process.owner.pid}` : '',
-                r.process ? `$ ${r.process.cmd}` : '',
+                r.process ? `$ ${r.process.cmd}` : r.run ? `declared: ${r.run}` : '',
               ].filter(Boolean).join(', '),
             ]),
-            ...v.hand.map((z) => [z.name, z.ports.join(' ') || '-', 'started by hand', `PID ${z.pid}${z.orphan ? ', orphan' : ''}, $ ${z.cmd}`]),
+            ...v.hand.map((z) => [z.name, z.ports.join(' ') || 'no port', 'started by hand', `PID ${z.pid}${z.orphan ? ', orphan' : ''}, $ ${z.cmd}`]),
             ...c.uses.map((l) => {
               const leaves = !group.paths.includes(l.workspace)
               return [`${l.key} ->`, l.port ? String(l.port) : '-', l.status, `${targetLabel(views, l.workspace, l.service)}${leaves ? ' (out of this group)' : ''}${l.status === 'stale' ? `, .env.local has ${l.written ?? 'nothing'}` : ''}`]

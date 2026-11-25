@@ -1,5 +1,5 @@
 import { existsSync } from 'node:fs'
-import type { Checkout, CheckoutLink, LinkStatus, State, Zombie } from '../api.js'
+import type { Checkout, CheckoutLink, DeclaredService, LinkStatus, State, Zombie } from '../api.js'
 import { envRefs, readBlock, resolveEnv } from '../envLocal.js'
 import { currentBranch, detachedHead, issueUrl, remoteOf, remoteWebUrl } from '../gitInfo.js'
 import { preferredPort, siblingCheckouts, workspaceLabel, type Workspace } from '../workspace.js'
@@ -56,12 +56,17 @@ export function checkouts({ state, zombies, listening, workspace, worktrees = ()
     return links.filter((l) => l.workspace !== ws.path || l.status === 'stale' || l.status === 'unresolved')
   }
 
+  const declaredOf = (ws: Workspace): DeclaredService[] =>
+    Object.entries(ws.services)
+      .flatMap(([service, s]) => (s.run ? [{ service, run: s.run }] : []))
+      .sort((a, b) => a.service.localeCompare(b.service))
+
   const list = [...paths].filter(existsSync).map((path) => {
     const ws = workspace(path)
     const free = isFree(path)
     const branch = free ? null : currentBranch(path)
     const web = remoteWebUrl(ws.main)
-    return { path, repo: ws.repo, slot: ws.n, free, slotActions: hasSlotActions(ws), label: workspaceLabel(ws), remote: remoteOf(web), branch, issueUrl: issueUrl(branch, web), uses: linksOf(ws), usedBy: [] } as Checkout
+    return { path, repo: ws.repo, slot: ws.n, free, slotActions: hasSlotActions(ws), label: workspaceLabel(ws), remote: remoteOf(web), branch, issueUrl: issueUrl(branch, web), declared: declaredOf(ws), uses: linksOf(ws), usedBy: [] } as Checkout
   })
   const byPath = new Map(list.map((c) => [c.path, c]))
   // Only a user with something up (not a free slot, not an idle checkout), in the group or out of it.

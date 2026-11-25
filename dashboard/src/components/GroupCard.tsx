@@ -1,5 +1,5 @@
 import { ActionIcon, Anchor, Badge, Card, Group, Stack, Table, Text, Title, Tooltip } from '@mantine/core'
-import { IconArrowLeft, IconArrowRight, IconBrandVscode, IconFolder, IconGitBranch, IconLink, IconStack2 } from '@tabler/icons-react'
+import { IconArrowLeft, IconArrowRight, IconBolt, IconBrandVscode, IconFolder, IconGitBranch, IconLink, IconStack2 } from '@tabler/icons-react'
 import type { CheckoutLink, LinkStatus, PortHolder } from '../../../src/api'
 import { groupOf, slotLabel, targetLabel, type CheckoutView, type GroupView, type ServiceRow } from '../../../src/projectView'
 import { useNow } from '../api'
@@ -8,7 +8,7 @@ import { ago, isRunning } from '../format'
 import { Path, PortLink } from './cells'
 import { CheckoutActions } from './CheckoutActions'
 import { KillButton } from './KillButton'
-import { Owner, ProcessActions, STATUS_COLOR } from './ProcessActions'
+import { Owner, ProcessActions, STATUS_COLOR, StartService } from './ProcessActions'
 
 const LINK: Record<LinkStatus, { color: string; tip: string }> = {
   ok: { color: 'teal', tip: 'Its target listens, .env.local points at it' },
@@ -114,6 +114,7 @@ function CheckoutHeader({ v, ctx, title }: { v: CheckoutView; ctx: Ctx; title?: 
 }
 
 function PortCell({ r }: { r: ServiceRow }) {
+  if (r.port === null) return <Text size="sm" c="dimmed">-</Text>
   const conflict = r.portState?.status === 'conflict' ? r.portState : undefined
   return (
     <Group gap={6} wrap="nowrap">
@@ -132,12 +133,23 @@ function PortCell({ r }: { r: ServiceRow }) {
   )
 }
 
+function HandBadges({ orphan }: { orphan: boolean }) {
+  return (
+    <Group gap={6} wrap="nowrap">
+      <Badge color="orange" variant="light">started by hand</Badge>
+      {orphan && (
+        <Tooltip label="The top of its process tree lost its parent (a closed terminal or launcher)">
+          <Badge color="yellow" variant="light" size="sm">orphan</Badge>
+        </Tooltip>
+      )}
+    </Group>
+  )
+}
+
 function ServiceStatus({ r }: { r: ServiceRow }) {
   const p = r.process
-  if (!p) {
-    const hand = r.portState?.status === 'hand'
-    return <Badge color={hand ? 'orange' : 'gray'} variant="light">{hand ? 'started by hand' : 'not running'}</Badge>
-  }
+  if (r.hand?.length) return <HandBadges orphan={r.hand.some((z) => z.orphan)} />
+  if (!p) return <Badge color="gray" variant="light">not running</Badge>
   return (
     <Group gap={6} wrap="nowrap">
       <Badge color={STATUS_COLOR[p.status]} variant="light">{p.status}{p.status === 'exited' && p.exitCode != null ? ` ${p.exitCode}` : ''}</Badge>
@@ -160,14 +172,25 @@ function ServiceRowView({ workspace, r, now, onLogs }: { workspace: string; r: S
   return (
     <Table.Tr bg={lit ? HIGHLIGHT_BG : undefined} style={{ transition: 'background-color 120ms' }}>
       <Table.Td>
-        <Text fw={600} size="sm">{r.service}</Text>
-        {r.process && <Command cmd={r.process.cmd} />}
+        <Group gap={6} wrap="nowrap">
+          <Text fw={600} size="sm">{r.service}</Text>
+          {r.run && (
+            <Tooltip label="Declared for porlocal (package.json localDev.services)">
+              <IconBolt size={14} stroke={1.8} color="var(--mantine-color-teal-6)" />
+            </Tooltip>
+          )}
+        </Group>
+        {(r.process ?? r.run) && <Command cmd={r.process?.cmd ?? r.run!} />}
       </Table.Td>
       <Table.Td><PortCell r={r} /></Table.Td>
       <Table.Td><ServiceStatus r={r} /></Table.Td>
-      <Table.Td>{r.process && <Owner p={r.process} now={now} />}</Table.Td>
+      <Table.Td>{r.hand?.length ? <Text size="xs" c="dimmed">PID {r.hand.map((z) => z.pid).join(', ')}</Text> : r.process && <Owner p={r.process} now={now} />}</Table.Td>
       <Table.Td><Text size="sm">{r.process && isRunning(r.process.status) ? ago(r.process.startedAt, now) : ''}</Text></Table.Td>
-      <Table.Td>{r.process && <ProcessActions p={r.process} onLogs={onLogs} />}</Table.Td>
+      <Table.Td>
+        {r.hand?.length ? (
+          <Group justify="flex-end" gap={6}>{r.hand.map((z) => <KillButton key={z.pid} pid={z.pid} name={z.name} checkout={z.checkout} />)}</Group>
+        ) : r.process ? <ProcessActions p={r.process} onLogs={onLogs} /> : r.run && <StartService workspace={workspace} service={r.service} />}
+      </Table.Td>
     </Table.Tr>
   )
 }
@@ -188,7 +211,7 @@ function CheckoutRows({ v, ctx, now, onLogs, header }: { v: CheckoutView; ctx: C
       )}
       {!v.services.length && !v.hand.length && (
         <Table.Tr>
-          <Table.Td colSpan={COLUMNS.length}><Text size="sm" c="dimmed">Nothing running here.</Text></Table.Td>
+          <Table.Td colSpan={COLUMNS.length}><Text size="sm" c="dimmed">Nothing declared or running here.</Text></Table.Td>
         </Table.Tr>
       )}
       {v.services.map((r) => <ServiceRowView key={r.service} workspace={v.checkout.path} r={r} now={now} onLogs={onLogs} />)}
@@ -199,17 +222,10 @@ function CheckoutRows({ v, ctx, now, onLogs, header }: { v: CheckoutView; ctx: C
             <Command cmd={z.cmd} />
           </Table.Td>
           <Table.Td>
-            <Group gap={6}>{z.ports.length ? z.ports.map((p) => <PortLink key={p} port={p} />) : <Text size="sm" c="dimmed">-</Text>}</Group>
+            <Group gap={6}>{z.ports.length ? z.ports.map((p) => <PortLink key={p} port={p} />) : <Text size="sm" c="dimmed">no port</Text>}</Group>
           </Table.Td>
           <Table.Td>
-            <Group gap={6} wrap="nowrap">
-              <Badge color="orange" variant="light">started by hand</Badge>
-              {z.orphan && (
-                <Tooltip label="The top of its process tree lost its parent (a closed terminal or launcher)">
-                  <Badge color="yellow" variant="light" size="sm">orphan</Badge>
-                </Tooltip>
-              )}
-            </Group>
+            <HandBadges orphan={z.orphan} />
           </Table.Td>
           <Table.Td><Text size="xs" c="dimmed">PID {z.pid}{z.root !== z.pid && ` (tree ${z.root})`}</Text></Table.Td>
           <Table.Td />
