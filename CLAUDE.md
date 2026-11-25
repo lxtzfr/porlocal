@@ -11,6 +11,8 @@ same `.env.local` block `wt env` writes. The slot layout, links, services and th
   `pnpm typecheck` (both). Dashboard dev: `pnpm dashboard:dev` (Vite on `DASHBOARD_PORT`, 4090; `/api` proxied to the
   daemon on `PORLOCAL_PORT`).
 - `node dist/cli.js <command>` (`pnpm link --global`: the `porlocal` command). `porlocal --help` lists the commands.
+- Dev servers go through porlocal (`localDev.services` in `package.json`): `porlocal run dashboard` (Vite, needs the daemon),
+  `porlocal run build-watch` (tsc --watch). The dashboard lists a checkout's declared services and starts them.
 - Try it without touching the real daemon: `PORLOCAL_HOME=<tmp dir> PORLOCAL_PORT=4790 node dist/cli.js ...`, then
   `daemon stop` and stop what it launched.
 

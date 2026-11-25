@@ -91,6 +91,15 @@ export function useCheckoutAction() {
   })
 }
 
+/** Starts a service the checkout declares (what `porlocal run <service>` does there). */
+export function useStartService() {
+  return useMutation({
+    mutationFn: ({ path, service }: { path: string; service: string }) => call<Managed>('/api/checkout/run', { path, service }),
+    onSuccess: (p, { service }) => notifications.show({ title: `start ${service}`, message: p.notes?.join('\n') ?? 'started', color: 'teal' }),
+    onError: (err, { service }) => notifications.show({ title: `start ${service} failed`, message: err.message, color: 'red', autoClose: false }),
+  })
+}
+
 export function useKill() {
   return useMutation({
     mutationFn: (pid: number) => call<Zombie>('/api/kill', { pid }),

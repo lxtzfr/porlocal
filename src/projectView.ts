@@ -6,13 +6,18 @@ export type Proc = StateResponse['processes'][number]
 /** A service of a checkout: what porlocal runs or leases for it, and what is on its ports. */
 export interface ServiceRow {
   service: string
-  port: number
+  /** Its port while it runs, by porlocal or by hand; null otherwise (a lease or a declared port is only reserved). */
+  port: number | null
+  /** Its declared `run` command: a stopped service can be started. */
+  run?: string
   process?: Proc
   lease?: Lease
   /** Its current port as the machine sees it (ok, free, conflict…). */
   portState?: ProjectPort
   /** Its declared port, taken by something else: it got `port` instead. */
   moved?: ProjectPort
+  /** Started by hand on its port while porlocal runs nothing for it: it is this service, not another row. */
+  hand?: Zombie[]
 }
 
 export interface CheckoutView {
@@ -29,7 +34,7 @@ export const slotLabel = (c: Pick<Checkout, 'slot' | 'free'>, main = 'main') =>
   c.slot === 1 ? main : c.slot ? `slot ${c.slot}${c.free ? ' (free)' : ''}` : 'outside slots'
 
 // The state feed (1 s) can show a checkout before the machine feed (5 s) knows it.
-const bare = (path: string): Checkout => ({ path, repo: basename(path), slot: null, free: false, slotActions: false, label: basename(path), remote: null, branch: null, issueUrl: null, uses: [], usedBy: [] })
+const bare = (path: string): Checkout => ({ path, repo: basename(path), slot: null, free: false, slotActions: false, label: basename(path), remote: null, branch: null, issueUrl: null, declared: [], uses: [], usedBy: [] })
 
 /** Everything porlocal knows, checkout by checkout. */
 export function checkoutViews(state: StateResponse, machine: MachineResponse | undefined): CheckoutView[] {
@@ -46,19 +51,25 @@ export function checkoutViews(state: StateResponse, machine: MachineResponse | u
     ports.find((p) => p.expected?.workspace === workspace && p.expected.service === service && status(p.status))
 
   return list.map((checkout) => {
+    const zombies = (machine?.zombies ?? []).filter((z) => z.checkout === checkout.path)
     const rows = new Map<string, ServiceRow>()
-    for (const lease of state.leases.filter((l) => l.workspace === checkout.path)) rows.set(lease.service, { service: lease.service, port: lease.port, lease })
+    for (const lease of state.leases.filter((l) => l.workspace === checkout.path)) rows.set(lease.service, { service: lease.service, port: null, lease })
     for (const p of state.processes.filter((x) => x.workspace === checkout.path)) {
-      rows.set(p.service, { ...rows.get(p.service), service: p.service, port: p.port, process: p })
+      rows.set(p.service, { ...rows.get(p.service), service: p.service, port: null, process: p })
     }
+    for (const d of checkout.declared) rows.set(d.service, { ...(rows.get(d.service) ?? { service: d.service, port: null }), run: d.run })
     for (const row of rows.values()) {
       row.portState = portRow(checkout.path, row.service, (s) => s !== 'moved')
+      // A port only while something runs on it, whoever started it (porlocal, or by hand).
+      const up = row.process && (row.process.status === 'starting' || row.process.status === 'ready')
+      row.port = up ? row.process!.port : row.portState?.status === 'hand' ? row.portState.port : null
+      if (!up && row.port !== null) row.hand = zombies.filter((z) => z.ports.includes(row.port!))
       row.moved = portRow(checkout.path, row.service, (s) => s === 'moved')
     }
     return {
       checkout,
       services: [...rows.values()].sort((a, b) => a.service.localeCompare(b.service)),
-      hand: (machine?.zombies ?? []).filter((z) => z.checkout === checkout.path),
+      hand: zombies.filter((z) => ![...rows.values()].some((r) => r.hand?.includes(z))),
     }
   })
 }

@@ -1,7 +1,7 @@
 import { ActionIcon, Badge, Group, Text, Tooltip } from '@mantine/core'
 import { IconFileText, IconPin, IconPlayerPlay, IconPlayerStop, IconRefresh, IconTrash } from '@tabler/icons-react'
 import type { ReactNode } from 'react'
-import { useProcessAction, type ProcessAction } from '../api'
+import { useProcessAction, useStartService, type ProcessAction } from '../api'
 import type { Proc } from '../../../src/projectView'
 import { isRunning } from '../format'
 
@@ -26,6 +26,15 @@ function Action({ label, icon, color, onClick, loading }: { label: string; icon:
         {icon}
       </ActionIcon>
     </Tooltip>
+  )
+}
+
+export function StartService({ workspace, service }: { workspace: string; service: string }) {
+  const start = useStartService()
+  return (
+    <Group gap={2} wrap="nowrap" justify="flex-end">
+      <Action label="Start" color="teal" icon={<IconPlayerPlay size={18} stroke={1.6} />} onClick={() => start.mutate({ path: workspace, service })} loading={start.isPending} />
+    </Group>
   )
 }
 

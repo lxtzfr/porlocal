@@ -104,6 +104,12 @@ export interface CheckoutLink {
   expected?: string
 }
 
+/** A service of `package.json` `localDev.services` with a `run` command: what porlocal can start there. */
+export interface DeclaredService {
+  service: string
+  run: string
+}
+
 /** A checkout porlocal knows (it runs, leases or sees something there, it uses or is used by one of those). */
 export interface Checkout {
   path: string
@@ -119,6 +125,7 @@ export interface Checkout {
   remote: { slug: string; url: string } | null
   branch: string | null
   issueUrl: string | null
+  declared: DeclaredService[]
   uses: CheckoutLink[]
   usedBy: { workspace: string; label: string; key: string; service: string; status: LinkStatus }[]
 }
