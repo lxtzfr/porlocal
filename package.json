@@ -66,6 +66,6 @@
     }
   },
   "dependencies": {
-    "@lxtzfr/wt": "github:lxtzfr/wt#v2.1.0"
+    "@lxtzfr/wt": "github:lxtzfr/wt#v2.2.0"
   }
 }

@@ -1,18 +1,18 @@
 {
   "kits": {
     "core": {
-      "sha": "b61e131f04820229373dea61af6c5147fcd98788"
+      "sha": "f6d5b3ba5243536d1bd950f484ee6ced1e1c664d"
     }
   },
   "local": [
     "core"
   ],
   "files": {
-    "claude/my-stack/core/CLAUDE.md": "sha256:dac116aacef5741bd4a5cc3d6dc426567eaaf8f3fc08dcf91c909743e28f33f4",
-    "claude/my-stack/core/my-stack.md": "sha256:244d887fac82e32cb42d774a5976a104c7c6f1b48c61c442aedafa69106b1d8e",
+    "claude/my-stack/core/CLAUDE.md": "sha256:da6e467d4bedbce025442fc11c9e75884924c91736ea8756e37e6243f74b6756",
+    "claude/my-stack/core/my-stack.md": "sha256:f3e7b4f36150093619ffbd3a7b1816e52b59ada109014ee4717daa279d1b2887",
     "claude/my-stack/core/sentry.md": "sha256:c734bb50043f3436b9bba616bfcec7f10fd3f19f6d97319bf4a98e83d562e311",
-    "claude/my-stack/core/services.md": "sha256:0047446027897726f51f7b9644939386bc2f337c01bb796c3fa576d946ebf94e",
-    "claude/my-stack/core/tickets.md": "sha256:90441f44bdbec2eeee59a26c54f369cb11d85074de3c3ef5c4d373c9239442c5",
-    "claude/my-stack/core/worktrees.md": "sha256:f7e7e79f8aadb5fc204ced1d8977812bb8bf4d881523577d6ad773731e4f198f"
+    "claude/my-stack/core/services.md": "sha256:43269459798111315286991a534f2a6f2076098349afc9ea231788dde07462f7",
+    "claude/my-stack/core/tickets.md": "sha256:d149681fb1a64aa27f400e786626a2e90bacea776ea2b594374ba8f3d0b2cc40",
+    "claude/my-stack/core/worktrees.md": "sha256:3094584c4511d98322a2207e1aa448a2d71a834486c18c9d35949ffcb085a92d"
   }
 }
