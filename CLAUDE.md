@@ -40,6 +40,7 @@ same `.env.local` block `wt env` writes. The slot layout, links, services and th
 - `run` / `up` just work: a service is on its declared port whenever free, else on another one, never silently (said,
   the `.env.local` of every checkout reading it rewritten, what porlocal runs there restarted; `--keep-port`: error).
 - Other repos only ever point at what porlocal launched: a process started by hand on the port is named, never adopted.
+- A service with `stop` is detached (a container): no PID is its own, never `killTree` what holds its port.
 - Launched processes must outlive the daemon: output goes straight to their log file (no pipe), stop = kill the whole
   tree (`killTree`), re-adoption by PID or port holder.
 - The API stays local-only: Host header checked, POST JSON only (no cross-site form).

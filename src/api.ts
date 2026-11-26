@@ -31,6 +31,8 @@ export interface Managed {
   service: string
   port: number
   cmd: string
+  /** A detached service (a container): `cmd` starts it and returns, this stops it. */
+  stopCmd?: string
   pid: number
   owner: Owner | null
   ownerLostAt?: number

@@ -29,6 +29,16 @@ else reads the port (a script, an agent, an OAuth redirect URL) must read `.env.
 declared one. `porlocal status` shows each checkout, its services, and what runs there outside porlocal (a `pnpm dev` by
 hand, a leftover); `porlocal ports` shows who holds each port.
 
+A service that runs detached (a database in Docker) also declares `stop`: `run` starts it and returns, `stop` ends it,
+and its port comes from the environment (`ports: ["${DB_PORT:-5432}:5432"]` in the compose file):
+
+```json
+"localDev": {
+  "services": { "db": { "port": 5432, "run": "docker compose up -d --wait db", "stop": "docker compose stop db" } },
+  "env": { "DB_PORT": "{port:db}" }
+}
+```
+
 Do not add a `porlocal` script to a project's `package.json`: the tool is optional, a clone without it must still work.
 
 ## Daily use
