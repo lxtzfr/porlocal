@@ -8,8 +8,11 @@ import { declaredPort, projectConfig, normalize, refTarget as wtRefTarget, resol
 
 export { normalize, slotsDir, slotPort }
 
+/** wt's service, plus porlocal's `stop`: its `run` then only starts it (a container) and `stop` ends it. */
+export type Service = ServiceDecl & { stop?: string }
+
 export interface Workspace extends Checkout {
-  services: Record<string, ServiceDecl>
+  services: Record<string, Service>
   env: Record<string, string>
 }
 

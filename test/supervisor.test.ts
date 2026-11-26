@@ -27,6 +27,15 @@ const listener = join(root, 'listen.js')
 writeFileSync(listener, "require('node:http').createServer((_, res) => res.end('ok')).listen(Number(process.env.PORT))\n")
 const serve = `node "${listener}"`
 
+// Like `docker compose up -d` / `stop`: the listener belongs to no process of the command that started it.
+const INFRA_PORT = base + 2
+const pidFile = join(root, 'infra.pid')
+const starter = join(root, 'start.js')
+writeFileSync(starter, `const c = require('node:child_process').spawn(process.execPath, [${JSON.stringify(listener)}], { detached: true, stdio: 'ignore' }); c.unref(); require('node:fs').writeFileSync(${JSON.stringify(pidFile)}, String(c.pid))\n`)
+const stopper = join(root, 'stop.js')
+writeFileSync(stopper, `process.kill(Number(require('node:fs').readFileSync(${JSON.stringify(pidFile)})))\n`)
+const infra = repo(join(root, 'ws'), 'infra', { services: { db: { port: INFRA_PORT, run: `node "${starter}"`, stop: `node "${stopper}"` } } })
+
 const sup = new Supervisor(silent)
 const held: Server[] = []
 
@@ -81,6 +90,23 @@ describe('supervisor', { timeout: 60_000 }, () => {
     expect(apiUrl()).toBe(`http://localhost:${SERVER_PORT}`)
     sup.stop(back.id)
     await until(() => isFree(back.port))
+  })
+
+  it('a detached service: ready once its command returned and its port answers, ended by its stop command', async () => {
+    const p = await sup.run({ cwd: infra, service: 'db', callerPid: process.pid, ownerPid: null, env: process.env as Record<string, string> })
+    expect(p.status).toBe('ready')
+    expect(new Supervisor(silent).find(p.id)?.status).toBe('ready')
+
+    const restarted = await sup.restart(p.id)
+    expect(restarted.status).toBe('ready')
+    expect(restarted.port).toBe(INFRA_PORT)
+
+    sup.stop(p.id)
+    await until(() => isFree(INFRA_PORT))
+
+    const again = await sup.run({ cwd: infra, service: 'db', callerPid: process.pid, ownerPid: null, env: process.env as Record<string, string> })
+    process.kill(Number(readFileSync(pidFile, 'utf-8')))
+    await until(() => sup.find(again.id)?.status === 'exited')
   })
 
   it('stops the whole tree after the grace delay once the owner dies', async () => {

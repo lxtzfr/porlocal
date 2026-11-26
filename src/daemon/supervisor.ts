@@ -38,6 +38,7 @@ export class Supervisor {
   readonly state: State = loadState()
   private readonly children = new Map<string, ChildProcess>()
   private readonly requests = new Map<string, RunRequest>()
+  private readonly stopping = new Map<string, Promise<void>>()
   onPortChange: (workspace: string, service: string, port: number) => void = () => {}
   /** The dev processes of known checkouts porlocal did not launch (set by the daemon, which scans the machine). */
   zombies: () => Zombie[] = () => []
@@ -59,6 +60,8 @@ export class Supervisor {
   // A watcher restarts its server (PID gone, port free for a moment): the tree's root alive means it is still ours.
   private readopt(p: Managed): boolean {
     p.adopted = true
+    // The port holder of a detached service is Docker's own process: never tracked, killing it would take Docker down.
+    if (p.stopCmd) return portHolder(p.port) !== null
     const table = processTable()
     const track = (pid: number) => {
       const proc = table.get(pid)
@@ -185,7 +188,8 @@ export class Supervisor {
       const other = resolveWorkspace(path)
       if (!dependsOn(other, ws.path, service)) continue
       this.writeEnv(other)
-      const running = this.state.processes.filter((p) => p.workspace === other.path && (p.status === 'starting' || p.status === 'ready'))
+      // Never a detached service: a database would bounce for a port it doesn't read.
+      const running = this.state.processes.filter((p) => p.workspace === other.path && !p.stopCmd && (p.status === 'starting' || p.status === 'ready'))
       for (const p of running) {
         this.log.info(`${p.id}: restarting, ${workspaceLabel(ws)}/${service} moved to ${port}`)
         void this.restart(p.id).catch((err) => this.log.error(`${p.id}: restart failed`, err))
@@ -218,7 +222,8 @@ export class Supervisor {
     if (current) return { ...current, notes: ['already running'] }
 
     // Free port or not: a left-over watcher of this checkout rebuilds and takes it back at its next file change.
-    const leftOver = leftOverOf(this.zombies(), ws.path, cmd)
+    const stop = req.cmd ? undefined : ws.services[req.service]?.stop
+    const leftOver = stop ? [] : leftOverOf(this.zombies(), ws.path, cmd)
     if (leftOver.length) {
       const names = leftOver.map((z) => `PID ${z.root} (${z.name}${z.ports.length ? `, port ${z.ports.join(' ')}` : ', not listening'}${z.orphan ? ', orphan' : ''})`).join('; ')
       const lost = this.find(id)?.adopted ? ' porlocal ran it before and lost track of it (a daemon restart, a watcher restart).' : ''
@@ -268,6 +273,7 @@ export class Supervisor {
       service: req.service,
       port,
       cmd: expanded,
+      ...(stop ? { stopCmd: expandCommand(stop, ws, port, this.portOf) } : {}),
       pid: child.pid,
       owner,
       graceMs: (req.graceSec ?? DEFAULT_GRACE_MS / 1000) * 1000,
@@ -281,20 +287,24 @@ export class Supervisor {
     this.log.info(`${id}: started PID ${child.pid} on ${port}, owner ${owner ? `${owner.name} (${owner.pid})` : 'none'}: ${expanded}`)
     this.save()
 
+    const exited = new Promise<number | null>((done) => child.on('exit', done))
     child.on('exit', (code) => {
       // A restart may already have started the next child under the same id.
       if (this.children.get(id) === child) this.children.delete(id)
-      if (managed.status === 'stopped') return
+      // A detached service's command returns once it is started.
+      if (managed.status === 'stopped' || (stop && code === 0)) return
       managed.status = 'exited'
       managed.exitCode = code
       this.log.info(`${id}: exited (code ${code})`)
       this.save()
     })
 
+    // Its command first: an image being pulled listens on nothing for longer than the ready timeout.
+    if (stop && (await exited) !== 0) return { ...managed, notes }
     const ready = await waitListening(port, READY_TIMEOUT_MS, () => managed.status === 'starting')
     if (ready && managed.status === 'starting') {
       // Any listener makes the port busy: ready only when it is ours (our tree), else a foreign one took it.
-      const holder = portHolder(port)
+      const holder = stop ? null : portHolder(port)
       if (holder && !ancestry(processTable(), holder.pid).some((a) => a.pid === managed.pid) && holder.pid !== managed.pid) {
         this.stop(id, `port ${port} is held by PID ${holder.pid}, not by this process`)
         this.log.warn(`${id}: ${managed.stopReason}`)
@@ -314,11 +324,32 @@ export class Supervisor {
       p.status = 'stopped'
       p.stopReason = reason
       delete p.ownerLostAt
-      killTree(p.root ?? p.pid)
-      this.log.info(`${id}: stopped PID ${p.root ?? p.pid} (${reason})`)
+      if (p.stopCmd) {
+        // Its start command may still be running (a pull).
+        if (this.children.has(id)) killTree(p.pid)
+        this.runStop(p)
+      } else killTree(p.root ?? p.pid)
+      this.log.info(`${id}: stopped ${p.stopCmd ? `with ${p.stopCmd}` : `PID ${p.root ?? p.pid}`} (${reason})`)
       this.save()
     }
     return p
+  }
+
+  private runStop(p: Managed): void {
+    const fd = this.openLog(p.logFile, `\n--- ${new Date().toISOString()} porlocal: ${p.stopCmd}\n`)
+    try {
+      const child = spawn(p.stopCmd!, { cwd: p.workspace, env: process.env, shell: true, windowsHide: true, stdio: ['ignore', fd, fd] })
+      const done = new Promise<void>((resolve) => {
+        child.on('error', (err) => this.log.error(`${p.id}: stop command failed`, err))
+        child.on('close', (code) => {
+          if (code !== 0) this.log.warn(`${p.id}: stop command exited with code ${code} (porlocal logs ${p.id})`)
+          resolve()
+        })
+      })
+      this.stopping.set(p.id, done)
+    } finally {
+      closeSync(fd)
+    }
   }
 
   async restart(id: string): Promise<Managed> {
@@ -329,6 +360,7 @@ export class Supervisor {
     const ownerAlive = p.owner !== null && p.owner !== undefined && isAlive(p.owner.pid)
     if (p.owner && !ownerAlive) this.log.info(`${id}: owner ${p.owner.name} (${p.owner.pid}) is gone, restarting without owner`)
     this.stop(id, 'restart')
+    await this.stopping.get(id)
     const until = Date.now() + 10_000
     while (Date.now() < until && !(await isFree(p.port))) await new Promise((r) => setTimeout(r, 300))
     return this.run({ ...req, ownerPid: ownerAlive ? p.owner!.pid : null })
@@ -351,6 +383,7 @@ export class Supervisor {
         changed = true
         continue
       }
+      if (p.stopCmd && p.status === 'ready') void this.checkDetached(p)
       if (!p.owner) continue
       if (isAlive(p.owner.pid)) {
         if (p.ownerLostAt) {
@@ -368,6 +401,15 @@ export class Supervisor {
       }
     }
     if (changed) this.save()
+  }
+
+  // No process to watch: a detached service is up while its port is.
+  private async checkDetached(p: Managed): Promise<void> {
+    if (!(await isFree(p.port)) || p.status !== 'ready') return
+    p.status = 'exited'
+    p.exitCode = null
+    this.log.info(`${p.id}: nothing on ${p.port} any more`)
+    this.save()
   }
 
   /** Keeps a process running whatever happens to its owner (`porlocal keep`). */
