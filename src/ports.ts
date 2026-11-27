@@ -9,9 +9,10 @@ function canListen(port: number, host: string): Promise<boolean> {
   })
 }
 
-// Both stacks: Vite binds ::1 for `localhost`, Nest 0.0.0.0 / ::; a port held on either one is taken.
+// Both stacks, loopback and wildcard: Windows lets one bind `127.0.0.1` beside a server on `0.0.0.0` and the reverse.
 export async function isFree(port: number): Promise<boolean> {
-  return (await canListen(port, '127.0.0.1')) && (await canListen(port, '::1')) && (await canListen(port, '::'))
+  for (const host of ['127.0.0.1', '0.0.0.0', '::1', '::']) if (!(await canListen(port, host))) return false
+  return true
 }
 
 export interface PortHolder {
