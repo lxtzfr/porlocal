@@ -171,6 +171,12 @@ describe('supervisor', { timeout: 60_000 }, () => {
     expect(isAlive(byPort.pid)).toBe(true)
     expect(normalize(byPort.workspace)).toBe(normalize(server))
 
+    // Adopted while still starting: ready once its port answers.
+    saved.processes.find((x: { id: string }) => x.id === p.id).status = 'starting'
+    writeFileSync(join(home, 'state.json'), JSON.stringify(saved))
+    const fourth = new Supervisor(silent)
+    await until(() => fourth.find(p.id)!.status === 'ready')
+
     killTree(p.pid)
     killTree(byPort.pid)
     await until(() => isFree(p.port))
