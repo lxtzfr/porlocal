@@ -36,6 +36,9 @@ const stopper = join(root, 'stop.js')
 writeFileSync(stopper, `process.kill(Number(require('node:fs').readFileSync(${JSON.stringify(pidFile)})))\n`)
 const infra = repo(join(root, 'ws'), 'infra', { services: { db: { port: INFRA_PORT, run: `node "${starter}"`, stop: `node "${stopper}"` } } })
 
+const NEEDS_PORT = base + 3
+const app = repo(join(root, 'ws'), 'app', { services: { api: { port: NEEDS_PORT, run: serve, needs: ['infra/db'] }, loop: { run: serve, needs: ['loop'] } } })
+
 const sup = new Supervisor(silent)
 const held: Server[] = []
 
@@ -107,6 +110,24 @@ describe('supervisor', { timeout: 60_000 }, () => {
     const again = await sup.run({ cwd: infra, service: 'db', callerPid: process.pid, ownerPid: null, env: process.env as Record<string, string> })
     process.kill(Number(readFileSync(pidFile, 'utf-8')))
     await until(() => sup.find(again.id)?.status === 'exited')
+  })
+
+  it('starts what a service needs first, and again when it went down; a cycle is an error', async () => {
+    const request = { cwd: app, service: 'api', callerPid: process.pid, ownerPid: null, env: process.env as Record<string, string> }
+    const p = await sup.run(request)
+    expect(p.status).toBe('ready')
+    const db = () => sup.state.processes.find((x) => x.service === 'db')!
+    expect(db().status).toBe('ready')
+
+    sup.stop(db().id)
+    await until(() => isFree(INFRA_PORT))
+    expect((await sup.run(request)).notes).toContain('already running')
+    expect(db().status).toBe('ready')
+
+    await expect(sup.run({ ...request, service: 'loop' })).rejects.toThrow('needs cycle')
+    sup.stop(p.id)
+    sup.stop(db().id)
+    await until(() => isFree(INFRA_PORT))
   })
 
   it('stops the whole tree after the grace delay once the owner dies', async () => {

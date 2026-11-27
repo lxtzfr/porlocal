@@ -39,6 +39,12 @@ and its port comes from the environment (`ports: ["${DB_PORT:-5432}:5432"]` in t
 }
 ```
 
+`needs` lists what to start before a service, as `<service>` or `<repo>/<service>`; `porlocal run` starts what is down:
+
+```json
+"api": { "port": 3000, "run": "pnpm dev", "needs": ["db", "workspace/stream"] }
+```
+
 Do not add a `porlocal` script to a project's `package.json`: the tool is optional, a clone without it must still work.
 
 ## Daily use
