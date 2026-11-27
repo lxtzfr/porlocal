@@ -402,6 +402,7 @@ export class Supervisor {
         continue
       }
       if (p.stopCmd && p.status === 'ready') void this.checkDetached(p)
+      if (p.adopted && p.status === 'starting') void this.checkStarted(p)
       if (!p.owner) continue
       if (isAlive(p.owner.pid)) {
         if (p.ownerLostAt) {
@@ -419,6 +420,14 @@ export class Supervisor {
       }
     }
     if (changed) this.save()
+  }
+
+  // The `run` waiting for its port went with the previous daemon.
+  private async checkStarted(p: Managed): Promise<void> {
+    if ((await isFree(p.port)) || p.status !== 'starting') return
+    p.status = 'ready'
+    this.log.info(`${p.id}: listening on ${p.port}`)
+    this.save()
   }
 
   // No process to watch: a detached service is up while its port is.
