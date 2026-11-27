@@ -2,7 +2,7 @@ import { spawn, type ChildProcess } from 'node:child_process'
 import { appendFileSync, closeSync, existsSync, mkdirSync, openSync, renameSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import { registerProject } from '@lxtzfr/wt'
-import { dependsOn, expandCommand, resolveEnv, writeBlock, type PortOf } from '../envLocal.js'
+import { dependsOn, expandCommand, injectedEnv, resolveEnv, writeBlock, type PortOf } from '../envLocal.js'
 import type { Logger } from '../log.js'
 import { DYNAMIC_RANGE, LOGS_DIR } from '../paths.js'
 import { isFree, portHolder, waitListening } from '../ports.js'
@@ -248,7 +248,7 @@ export class Supervisor {
 
     const expanded = expandCommand(cmd, ws, port, this.portOf)
     const logFile = join(LOGS_DIR, `${id.replace(/[\\/:@]/g, '_')}.log`)
-    const env = { ...req.env, ...values, PORT: String(port) }
+    const env = { ...req.env, ...injectedEnv(ws, values), PORT: String(port) }
     const fd = this.openLog(logFile, `\n--- ${new Date().toISOString()} porlocal: ${expanded} (port ${port})\n`)
     let child: ChildProcess
     try {

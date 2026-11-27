@@ -1,7 +1,8 @@
 // `.env.local` block as wt writes it, filled with the ports porlocal leased instead of the declared ones. What it
 // can't resolve (`{database:...}` without the main `.env`, a target with no port) keeps the block's current value.
 
-import { envRefs as wtEnvRefs, readBlock, resolveEnv as wtResolveEnv, writeBlock } from '@lxtzfr/wt'
+import { join } from 'node:path'
+import { envRefs as wtEnvRefs, LOCAL_ENV, readBlock, readEnv, resolveEnv as wtResolveEnv, writeBlock } from '@lxtzfr/wt'
 import { refTarget, type Workspace } from './workspace.js'
 
 export { LOCAL_ENV, readBlock, writeBlock } from '@lxtzfr/wt'
@@ -17,6 +18,15 @@ export function resolveEnv(ws: Workspace, portOf: PortOf): { values: Record<stri
   // Back in the declared order: a kept value goes where its key is.
   const ordered = Object.fromEntries(Object.keys(ws.env).filter((k) => k in values).map((k) => [k, values[k]!]))
   return { values: ordered, skipped: resolved.skipped.map(({ key, reason }) => `${key}: ${reason}`) }
+}
+
+/**
+ * What a launched process gets for the block's keys: a line below the block wins, as when the app reads the file itself.
+ * Injected variables beat any env file, so the block's own value would hide it.
+ */
+export function injectedEnv(ws: Pick<Workspace, 'path'>, values: Record<string, string>): Record<string, string> {
+  const file = readEnv(join(ws.path, LOCAL_ENV))
+  return Object.fromEntries(Object.entries(values).map(([key, value]) => [key, file[key] ?? value]))
 }
 
 /** `{port}` / `{url}` (this service), `{port:<ref>}` / `{url:<ref>}` in a command line. */

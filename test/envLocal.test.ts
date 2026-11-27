@@ -3,7 +3,7 @@ import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { dependsOn, expandCommand, readBlock, resolveEnv, writeBlock } from '../src/envLocal.js'
+import { dependsOn, expandCommand, injectedEnv, readBlock, resolveEnv, writeBlock } from '../src/envLocal.js'
 import { normalize, preferredPort, resolveWorkspace } from '../src/workspace.js'
 import { repo, START } from './fixtures.js'
 
@@ -35,6 +35,17 @@ describe('workspace + env', () => {
     writeFileSync(join(server2, '.env.local'), `${START}\nDATABASE_URL=postgres://x/app_2\n# local services: end\n`)
     const portOf = (w: string, s: string) => (w === normalize(web) && s === 'web' ? 4100 : preferredPort(resolveWorkspace(w), s))
     expect(resolveEnv(s2, portOf).values).toEqual({ PORT: '3011', WEB_URL: 'http://localhost:4100', DATABASE_URL: 'postgres://x/app_2' })
+  })
+
+  it('a line below the block wins in what a process gets', () => {
+    const { web } = layout()
+    writeFileSync(join(web, '.env.local'), `${START}
+PORT=3000
+VITE_API_URL=http://localhost:3001
+# local services: end
+VITE_API_URL=http://other:3001
+`)
+    expect(injectedEnv({ path: web }, { PORT: '3000', VITE_API_URL: 'http://localhost:3001' })).toEqual({ PORT: '3000', VITE_API_URL: 'http://other:3001' })
   })
 
   it('finds dependents through links and expands commands', () => {
