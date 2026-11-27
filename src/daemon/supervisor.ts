@@ -7,7 +7,7 @@ import type { Logger } from '../log.js'
 import { DYNAMIC_RANGE, LOGS_DIR } from '../paths.js'
 import { isFree, portHolder, waitListening } from '../ports.js'
 import { ancestry, detectOwner, isAlive, killTree, processTable } from '../procs.js'
-import { preferredPort, resolveWorkspace, siblingCheckouts, workspaceLabel, type Workspace } from '../workspace.js'
+import { preferredPort, refTarget, resolveWorkspace, siblingCheckouts, workspaceLabel, type Workspace } from '../workspace.js'
 import type { Lease, Managed, State, Zombie } from '../api.js'
 import { devTreeRoot, leftOverOf } from './zombies.js'
 import { loadState, saveState } from './state.js'
@@ -210,16 +210,33 @@ export class Supervisor {
     return openSync(file, 'a')
   }
 
-  async run(req: RunRequest): Promise<Managed> {
+  /** Starts what `service` needs and is not up, with the same owner; returns a note per service started. */
+  private async startNeeds(ws: Workspace, req: RunRequest, chain: string[]): Promise<string[]> {
+    const id = `${workspaceLabel(ws)}/${req.service}`
+    const notes: string[] = []
+    for (const ref of ws.services[req.service]?.needs ?? []) {
+      const target = refTarget(ws, ref)
+      if (this.running(target.workspace, target.service)?.status === 'ready') continue
+      const dep = await this.run({ ...req, cwd: target.workspace, service: target.service, cmd: undefined }, [...chain, id])
+      if (dep.status !== 'ready') throw new UserError(`${id} needs ${dep.id}, which is not ready (porlocal logs ${dep.id})`)
+      this.log.info(`${id}: needs ${dep.id}, up on ${dep.port}`)
+      notes.push(...(dep.notes ?? []), `needs ${dep.id}: up on ${dep.port}`)
+    }
+    return notes
+  }
+
+  async run(req: RunRequest, chain: string[] = []): Promise<Managed> {
     const ws = resolveWorkspace(req.cwd)
     registerProject(ws.main)
     const label = workspaceLabel(ws)
     const id = `${label}/${req.service}`
+    if (chain.includes(id)) throw new UserError(`needs cycle: ${[...chain, id].join(' -> ')}`)
     const cmd = req.cmd ?? ws.services[req.service]?.run
     if (!cmd) throw new UserError(`${label} declares no "${req.service}" with a run command (localDev.services): pass it after --`)
+    const needed = await this.startNeeds(ws, req, chain)
     // `up` twice is fine: what runs stays as is.
     const current = this.running(ws.path, req.service)
-    if (current) return { ...current, notes: ['already running'] }
+    if (current) return { ...current, notes: [...needed, 'already running'] }
 
     // Free port or not: a left-over watcher of this checkout rebuilds and takes it back at its next file change.
     const stop = req.cmd ? undefined : ws.services[req.service]?.stop
@@ -234,6 +251,7 @@ export class Supervisor {
     const { port, moved, blocked } = await this.lease(ws, req.service, !req.keepPort)
     const values = this.writeEnv(ws)
     const notes = [
+      ...needed,
       ...(blocked ? [`${blocked}: on ${port} instead`] : moved ? [`back on its declared port ${port}`] : []),
       ...(moved ? this.propagate(ws, req.service, port) : []),
     ]
