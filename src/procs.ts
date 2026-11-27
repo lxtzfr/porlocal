@@ -7,14 +7,18 @@ export interface ProcInfo {
   cmd: string
 }
 
+/** `ConvertTo-Json -Compress` output. PowerShell 5.1 leaves some control characters of a command line unescaped. */
+export function parseWindowsProcesses(json: string): ProcInfo[] {
+  const rows = JSON.parse(json.replace(/[\x00-\x1f]/g, ' ')) as Array<{ ProcessId: number; ParentProcessId: number; Name: string; CommandLine: string | null }>
+  return rows.map((p) => ({ pid: p.ProcessId, ppid: p.ParentProcessId, name: p.Name, cmd: p.CommandLine ?? '' }))
+}
+
 export function processTable(): Map<number, ProcInfo> {
   const table = new Map<number, ProcInfo>()
   if (process.platform === 'win32') {
     const script = 'Get-CimInstance Win32_Process | Select-Object ProcessId,ParentProcessId,Name,CommandLine | ConvertTo-Json -Compress'
     const out = execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script], { encoding: 'utf-8', maxBuffer: 64 * 1024 * 1024, windowsHide: true })
-    for (const p of JSON.parse(out) as Array<{ ProcessId: number; ParentProcessId: number; Name: string; CommandLine: string | null }>) {
-      table.set(p.ProcessId, { pid: p.ProcessId, ppid: p.ParentProcessId, name: p.Name, cmd: p.CommandLine ?? '' })
-    }
+    for (const p of parseWindowsProcesses(out)) table.set(p.pid, p)
     return table
   }
   const out = execFileSync('ps', ['-A', '-o', 'pid=,ppid=,comm=,args='], { encoding: 'utf-8', windowsHide: true })

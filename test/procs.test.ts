@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { detectOwner, isOneShot, msysParents, type ProcInfo } from '../src/procs.js'
+import { detectOwner, isOneShot, msysParents, parseWindowsProcesses, type ProcInfo } from '../src/procs.js'
 
 const table = (procs: Array<[number, number, string, string]>) =>
   new Map<number, ProcInfo>(procs.map(([pid, ppid, name, cmd]) => [pid, { pid, ppid, name, cmd }]))
@@ -65,5 +65,12 @@ describe('msysParents', () => {
     const execPs = ['header', '     3529       1    3529      31688  ?  197609 05:11:07 /usr/bin/bash', '     3531    3529    3529         30  ?  197609 05:11:07 /c/Program Files/nodejs/node'].join('\n')
     expect(detectOwner(t, 30)).toBeNull()
     expect(detectOwner(t, 30, msysParents(execPs))?.pid).toBe(10)
+  })
+})
+
+describe('parseWindowsProcesses', () => {
+  it('reads a list holding a raw control character in a command line', () => {
+    const json = `[{"ProcessId":7,"ParentProcessId":1,"Name":"bash.exe","CommandLine":"grep a${String.fromCharCode(26)}b"}]\r\n`
+    expect(parseWindowsProcesses(json)).toEqual([{ pid: 7, ppid: 1, name: 'bash.exe', cmd: 'grep a b' }])
   })
 })
